@@ -1,0 +1,28 @@
+# PlatformIO
+.pio
+.pioenvs
+.piolibdeps
+.clang_complete
+
+# Arduino / Embedded Build Output
+*.hex
+*.bin
+*.elf
+*.o
+*.obj
+build/
+
+# VS Code & IDEs
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.user
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
