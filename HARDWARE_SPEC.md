@@ -80,12 +80,12 @@ The standard ESP32 38-pin DevKit provides:
 | | `P2_DT` | GPIO 14 | Quadrature Channel B |
 | | `P2_SW` | GPIO 32 | Integrated Push-Button (Switch) |
 | **Player 3 Encoder** | `P3_CLK` | GPIO 33 | Quadrature Channel A |
-| | `P3_DT` | GPIO 34 | Quadrature Channel B (Input-only pin) |
-| | `P3_SW` | GPIO 35 | Integrated Push-Button (Input-only pin) |
-| **Player 4 Encoder** | `P4_CLK` | GPIO 36 (VP) | Quadrature Channel A (Input-only pin) |
-| | `P4_DT` | GPIO 39 (VN) | Quadrature Channel B (Input-only pin) |
-| | `P4_SW` | GPIO 16 | Integrated Push-Button |
-| **Global Hardware Button** | `BTN_RESET` | GPIO 17 | Tactile button for Quick Reset / Menu |
+| | `P3_DT` | GPIO 12 | Quadrature Channel B |
+| | `P3_SW` | GPIO 4 | Integrated Push-Button |
+| **Player 4 Encoder** | `P4_CLK` | GPIO 21 | Quadrature Channel A |
+| | `P4_DT` | GPIO 22 | Quadrature Channel B |
+| | `P4_SW` | GPIO 16 (RX2) | Integrated Push-Button |
+| **Global Hardware Button** | `BTN_RESET` | GPIO 5 | Tactile button for Quick Reset / Menu |
 
 **Summary:** 20 GPIO pins utilized. 6+ pins remain available for expansions (e.g., Piezo buzzer for audio cues, WS2812 status LED, or LiPo battery voltage sensing).
 
