@@ -10,6 +10,8 @@ Commander games present unique tabletop challenges:
 
 This project aims to build an intuitive, easy-to-read, tabletop hardware device for tracking game state without relying on phone apps that drain phone batteries or go to sleep.
 
+For detailed hardware choices, GPIO pin budgets, and design rationale, see [HARDWARE_SPEC.md](HARDWARE_SPEC.md).
+
 ---
 
 ## Hardware Approaches (Brainstorming)
