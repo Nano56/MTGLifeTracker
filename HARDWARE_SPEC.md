@@ -95,3 +95,4 @@ The standard ESP32 38-pin DevKit provides:
 - **Operating Voltage:** 3.3V logic level (native to ESP32 and ILI9341).
 - **Prototyping Power:** Standard 5V USB-C or Micro-USB cable connected directly to the ESP32 dev board regulator.
 - **Portable Expansion (Future):** Single-cell 3.7V LiPo battery with a TP4056 charging + boost module providing 5V to the board VIN pin.
+

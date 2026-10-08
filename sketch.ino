@@ -7,7 +7,7 @@
 // ==========================================
 #define TFT_CS   15
 #define TFT_DC    2
-#define TFT_RST   4
+#define TFT_RST  -1
 
 #define BTN_RESET 17
 
@@ -276,3 +276,4 @@ void loop() {
   handleEncoder(2, P3_CLK, P3_DT, P3_SW);
   handleEncoder(3, P4_CLK, P4_DT, P4_SW);
 }
+

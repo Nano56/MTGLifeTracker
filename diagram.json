@@ -4,96 +4,99 @@
   "editor": "wokwi",
   "parts": [
     {
-      "type": "wokwi-esp32-devkit-v1",
-      "id": "esp",
-      "top": 280,
-      "left": 160,
+      "type": "wokwi-ili9341",
+      "id": "lcd",
+      "top": 60,
+      "left": 280,
+      "rotate": 90,
       "attrs": {}
     },
     {
-      "type": "wokwi-ili9341",
-      "id": "lcd",
-      "top": 40,
-      "left": 140,
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp",
+      "top": 360,
+      "left": 360,
       "attrs": {}
     },
     {
       "type": "wokwi-rotary-encoder",
       "id": "p1_knob",
-      "top": -60,
-      "left": -60,
-      "attrs": { "label": "P1 (Life/Mode)" }
+      "top": 40,
+      "left": 80,
+      "attrs": { "label": "P1 (Red)" }
     },
     {
       "type": "wokwi-rotary-encoder",
       "id": "p2_knob",
-      "top": -60,
-      "left": 480,
-      "attrs": { "label": "P2 (Life/Mode)" }
+      "top": 40,
+      "left": 700,
+      "attrs": { "label": "P2 (Cyan)" }
     },
     {
       "type": "wokwi-rotary-encoder",
       "id": "p3_knob",
-      "top": 360,
-      "left": -60,
-      "attrs": { "label": "P3 (Life/Mode)" }
+      "top": 240,
+      "left": 80,
+      "attrs": { "label": "P3 (Green)" }
     },
     {
       "type": "wokwi-rotary-encoder",
       "id": "p4_knob",
-      "top": 360,
-      "left": 480,
-      "attrs": { "label": "P4 (Life/Mode)" }
+      "top": 240,
+      "left": 700,
+      "attrs": { "label": "P4 (Yellow)" }
     },
     {
       "type": "wokwi-pushbutton",
       "id": "btn_reset",
-      "top": 460,
+      "top": 400,
       "left": 220,
       "attrs": { "color": "red", "label": "Reset Game" }
     }
   ],
   "connections": [
-    [ "esp:GND.1", "lcd:GND", "black", [ "v0" ] ],
-    [ "esp:3V3", "lcd:VCC", "red", [ "v0" ] ],
-    [ "esp:3V3", "lcd:LED", "orange", [ "v0" ] ],
-    [ "esp:D18", "lcd:SCK", "gold", [ "v0" ] ],
-    [ "esp:D23", "lcd:MOSI", "green", [ "v0" ] ],
-    [ "esp:D19", "lcd:MISO", "blue", [ "v0" ] ],
-    [ "esp:D15", "lcd:CS", "purple", [ "v0" ] ],
-    [ "esp:D2", "lcd:DC", "gray", [ "v0" ] ],
-    [ "esp:D4", "lcd:RESET", "brown", [ "v0" ] ],
-    [ "esp:D18", "lcd:T_CLK", "gold", [ "v0" ] ],
-    [ "esp:D23", "lcd:T_DIN", "green", [ "v0" ] ],
-    [ "esp:D19", "lcd:T_DO", "blue", [ "v0" ] ],
-    [ "esp:D21", "lcd:T_CS", "magenta", [ "v0" ] ],
-    [ "esp:D22", "lcd:T_IRQ", "cyan", [ "v0" ] ],
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
 
-    [ "esp:GND.1", "p1_knob:GND", "black", [ "v0" ] ],
-    [ "esp:3V3", "p1_knob:VCC", "red", [ "v0" ] ],
-    [ "esp:D25", "p1_knob:CLK", "green", [ "v0" ] ],
-    [ "esp:D26", "p1_knob:DT", "blue", [ "v0" ] ],
-    [ "esp:D27", "p1_knob:SW", "orange", [ "v0" ] ],
+    [ "lcd:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "lcd:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "lcd:CS", "esp:D15", "purple", [ "v0" ] ],
+    [ "lcd:D/C", "esp:D2", "gray", [ "v0" ] ],
+    [ "lcd:MOSI", "esp:D23", "green", [ "v0" ] ],
+    [ "lcd:SCK", "esp:D18", "gold", [ "v0" ] ],
+    [ "lcd:MISO", "esp:D19", "blue", [ "v0" ] ],
 
-    [ "esp:GND.1", "p2_knob:GND", "black", [ "v0" ] ],
-    [ "esp:3V3", "p2_knob:VCC", "red", [ "v0" ] ],
-    [ "esp:D13", "p2_knob:CLK", "green", [ "v0" ] ],
-    [ "esp:D14", "p2_knob:DT", "blue", [ "v0" ] ],
-    [ "esp:D32", "p2_knob:SW", "orange", [ "v0" ] ],
+    [ "lcd:T_CLK", "esp:D18", "gold", [ "v0" ] ],
+    [ "lcd:T_DIN", "esp:D23", "green", [ "v0" ] ],
+    [ "lcd:T_DO", "esp:D19", "blue", [ "v0" ] ],
+    [ "lcd:T_CS", "esp:D21", "magenta", [ "v0" ] ],
+    [ "lcd:T_IRQ", "esp:D22", "cyan", [ "v0" ] ],
 
-    [ "esp:GND.1", "p3_knob:GND", "black", [ "v0" ] ],
-    [ "esp:3V3", "p3_knob:VCC", "red", [ "v0" ] ],
-    [ "esp:D33", "p3_knob:CLK", "green", [ "v0" ] ],
-    [ "esp:D34", "p3_knob:DT", "blue", [ "v0" ] ],
-    [ "esp:D35", "p3_knob:SW", "orange", [ "v0" ] ],
+    [ "p1_knob:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "p1_knob:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "p1_knob:CLK", "esp:D25", "green", [ "v0" ] ],
+    [ "p1_knob:DT", "esp:D26", "blue", [ "v0" ] ],
+    [ "p1_knob:SW", "esp:D27", "orange", [ "v0" ] ],
 
-    [ "esp:GND.1", "p4_knob:GND", "black", [ "v0" ] ],
-    [ "esp:3V3", "p4_knob:VCC", "red", [ "v0" ] ],
-    [ "esp:VP", "p4_knob:CLK", "green", [ "v0" ] ],
-    [ "esp:VN", "p4_knob:DT", "blue", [ "v0" ] ],
-    [ "esp:D16", "p4_knob:SW", "orange", [ "v0" ] ],
+    [ "p2_knob:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "p2_knob:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "p2_knob:CLK", "esp:D13", "green", [ "v0" ] ],
+    [ "p2_knob:DT", "esp:D14", "blue", [ "v0" ] ],
+    [ "p2_knob:SW", "esp:D32", "orange", [ "v0" ] ],
 
-    [ "esp:GND.1", "btn_reset:1.l", "black", [ "v0" ] ],
-    [ "esp:D17", "btn_reset:2.l", "red", [ "v0" ] ]
+    [ "p3_knob:GND", "esp:GND.2", "black", [ "v0" ] ],
+    [ "p3_knob:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "p3_knob:CLK", "esp:D33", "green", [ "v0" ] ],
+    [ "p3_knob:DT", "esp:D34", "blue", [ "v0" ] ],
+    [ "p3_knob:SW", "esp:D35", "orange", [ "v0" ] ],
+
+    [ "p4_knob:GND", "esp:GND.2", "black", [ "v0" ] ],
+    [ "p4_knob:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "p4_knob:CLK", "esp:VP", "green", [ "v0" ] ],
+    [ "p4_knob:DT", "esp:VN", "blue", [ "v0" ] ],
+    [ "p4_knob:SW", "esp:D16", "orange", [ "v0" ] ],
+
+    [ "btn_reset:1.l", "esp:GND.2", "black", [ "v0" ] ],
+    [ "btn_reset:2.l", "esp:D17", "red", [ "v0" ] ]
   ]
 }
