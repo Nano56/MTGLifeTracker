@@ -68,24 +68,22 @@ The standard ESP32 38-pin DevKit provides:
 | **SPI Bus (Shared)** | `SCK` | GPIO 18 | VSPI Clock |
 | | `MOSI` | GPIO 23 | VSPI Data Out |
 | | `MISO` | GPIO 19 | VSPI Data In (from Touch & TFT) |
-| **ILI9341 TFT Display** | `TFT_CS` | GPIO 15 | Chip Select (Active Low) |
-| | `TFT_DC` | GPIO 2 | Data / Command Select |
-| | `TFT_RST` | GPIO 4 | Hardware Reset |
-| **XPT2046 Touch** | `TOUCH_CS` | GPIO 21 | Touch Controller Chip Select |
-| | `TOUCH_IRQ` | GPIO 22 | Touch Interrupt |
-| **Player 1 Encoder** | `P1_CLK` | GPIO 25 | Quadrature Channel A |
-| | `P1_DT` | GPIO 26 | Quadrature Channel B |
-| | `P1_SW` | GPIO 27 | Integrated Push-Button (Switch) |
-| **Player 2 Encoder** | `P2_CLK` | GPIO 13 | Quadrature Channel A |
-| | `P2_DT` | GPIO 14 | Quadrature Channel B |
-| | `P2_SW` | GPIO 32 | Integrated Push-Button (Switch) |
-| **Player 3 Encoder** | `P3_CLK` | GPIO 33 | Quadrature Channel A |
-| | `P3_DT` | GPIO 12 | Quadrature Channel B |
-| | `P3_SW` | GPIO 4 | Integrated Push-Button |
-| **Player 4 Encoder** | `P4_CLK` | GPIO 21 | Quadrature Channel A |
-| | `P4_DT` | GPIO 22 | Quadrature Channel B |
-| | `P4_SW` | GPIO 16 (RX2) | Integrated Push-Button |
-| **Global Hardware Button** | `BTN_RESET` | GPIO 5 | Tactile button for Quick Reset / Menu |
+| **ILI9341 TFT Display** | `TFT_CS` | GPIO 21 | Chip Select (Active Low) |
+| | `TFT_DC` | GPIO 22 | Data / Command Select |
+| | `TFT_RST` | -1 | Software Reset |
+| **Player 1 Encoder (Left)** | `P1_CLK` | GPIO 25 | Quadrature Channel A (Left side) |
+| | `P1_DT` | GPIO 26 | Quadrature Channel B (Left side) |
+| | `P1_SW` | GPIO 27 | Integrated Push-Button (Left side) |
+| **Player 2 Encoder (Right)** | `P2_CLK` | GPIO 5 | Quadrature Channel A (Right side) |
+| | `P2_DT` | GPIO 17 (TX2) | Quadrature Channel B (Right side) |
+| | `P2_SW` | GPIO 16 (RX2) | Integrated Push-Button (Right side) |
+| **Player 3 Encoder (Left)** | `P3_CLK` | GPIO 33 | Quadrature Channel A (Left side) |
+| | `P3_DT` | GPIO 14 | Quadrature Channel B (Left side) |
+| | `P3_SW` | GPIO 12 | Integrated Push-Button (Left side) |
+| **Player 4 Encoder (Right)** | `P4_CLK` | GPIO 4 | Quadrature Channel A (Right side) |
+| | `P4_DT` | GPIO 2 | Quadrature Channel B (Right side) |
+| | `P4_SW` | GPIO 15 | Integrated Push-Button (Right side) |
+| **Global Reset Button** | `BTN_RESET` | GPIO 13 | Tactile button (Left side) |
 
 **Summary:** 20 GPIO pins utilized. 6+ pins remain available for expansions (e.g., Piezo buzzer for audio cues, WS2812 status LED, or LiPo battery voltage sensing).
 

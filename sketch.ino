@@ -3,9 +3,31 @@
 #include <Adafruit_ILI9341.h>
 
 // Pins for ESP32 hardware VSPI
-#define TFT_CS   15
-#define TFT_DC    2
+#define TFT_CS   21
+#define TFT_DC   22
 #define TFT_RST  -1
+
+#define BTN_RESET 13
+
+// Player 1 Encoder (Left)
+#define P1_CLK 25
+#define P1_DT  26
+#define P1_SW  27
+
+// Player 3 Encoder (Left)
+#define P3_CLK 33
+#define P3_DT  14
+#define P3_SW  12
+
+// Player 2 Encoder (Right)
+#define P2_CLK  5
+#define P2_DT  17 // TX2
+#define P2_SW  16 // RX2
+
+// Player 4 Encoder (Right)
+#define P4_CLK  4
+#define P4_DT   2
+#define P4_SW  15
 
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 
