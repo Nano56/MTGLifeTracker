@@ -11,9 +11,9 @@
 #include <unistd.h>
 #endif
 
-#include "GameState.h"
-#include "EventLog.h"
-#include "AppController.h"
+#include "../GameState.h"
+#include "../EventLog.h"
+#include "../AppController.h"
 
 // ANSI Color Codes
 #define ANSI_RESET   "\033[0m"

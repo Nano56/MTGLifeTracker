@@ -8,6 +8,10 @@ def main():
     print("      MTG COMMANDER LIFE TRACKER - AUTOMATED TEST SUITE")
     print("=" * 60)
 
+    # Change to repository root
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    os.chdir(repo_root)
+
     # Ensure g++ is reachable
     user_path = os.environ.get("Path", "")
     if "C:\\mingw64\\bin" not in user_path:
@@ -28,6 +32,11 @@ def main():
             "name": "test_inputdecoder",
             "sources": ["tests/test_inputdecoder.cpp", "InputDecoder.cpp"],
             "binary": "tests/test_inputdecoder.exe"
+        },
+        {
+            "name": "test_scenarios",
+            "sources": ["tests/test_scenarios.cpp", "GameState.cpp", "EventLog.cpp", "AppController.cpp"],
+            "binary": "tests/test_scenarios.exe"
         }
     ]
 

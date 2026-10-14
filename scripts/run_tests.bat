@@ -1,5 +1,6 @@
 @echo off
 setlocal
+cd /d "%~dp0\.."
 echo ========================================================
 echo    MTG COMMANDER LIFE TRACKER - NATIVE C++ TESTS
 echo ========================================================
@@ -70,13 +71,13 @@ if %ERRORLEVEL% NEQ 0 (
 
 REM 5. Build Desktop CLI Simulator
 echo.
-echo [*] Building Desktop CLI Simulator (cli_simulator.exe)...
-g++ -std=c++17 -Wall -Wextra -O2 cli_simulator.cpp GameState.cpp EventLog.cpp AppController.cpp -o cli_simulator.exe
+echo [*] Building Desktop CLI Simulator (tools\cli_simulator.exe)...
+g++ -std=c++17 -Wall -Wextra -O2 tools\cli_simulator.cpp GameState.cpp EventLog.cpp AppController.cpp -o tools\cli_simulator.exe
 if %ERRORLEVEL% EQU 0 (
-    echo   [OK] cli_simulator.exe built! Run 'cli_simulator.exe' to interactively test in terminal.
+    echo   [OK] tools\cli_simulator.exe built! Run 'tools\cli_simulator.exe' to test in terminal.
 )
 
 echo.
 echo ========================================================
-echo   ALL NATIVE C++ UNIT & SCENARIO TESTS PASSED (100%% SUCCESS)!
+echo   ALL NATIVE C++ UNIT AND SCENARIO TESTS PASSED (100%% SUCCESS)!
 echo ========================================================

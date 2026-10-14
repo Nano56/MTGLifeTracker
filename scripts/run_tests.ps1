@@ -1,5 +1,6 @@
 # Native C++ Test Runner for PowerShell
 $ErrorActionPreference = "Stop"
+Set-Location (Join-Path $PSScriptRoot "..")
 
 if (-not (Get-Command g++ -ErrorAction SilentlyContinue)) {
     if (Test-Path "C:\mingw64\bin\g++.exe") {
@@ -34,9 +35,9 @@ Write-Host "`n[4/4] Building & Running test_scenarios (Full-Game HID Simulation)
 & .\tests\test_scenarios.exe
 
 # 5. Build Desktop CLI Simulator
-Write-Host "`n[*] Building Desktop CLI Simulator (cli_simulator.exe)..." -ForegroundColor Cyan
-& g++ -std=c++17 -Wall -Wextra -O2 cli_simulator.cpp GameState.cpp EventLog.cpp AppController.cpp -o cli_simulator.exe
-Write-Host "  [OK] cli_simulator.exe built! Run '.\cli_simulator.exe' to interactively test in terminal." -ForegroundColor Green
+Write-Host "`n[*] Building Desktop CLI Simulator (tools/cli_simulator.exe)..." -ForegroundColor Cyan
+& g++ -std=c++17 -Wall -Wextra -O2 tools/cli_simulator.cpp GameState.cpp EventLog.cpp AppController.cpp -o tools/cli_simulator.exe
+Write-Host "  [OK] tools/cli_simulator.exe built! Run '.\tools\cli_simulator.exe' to test in terminal." -ForegroundColor Green
 
 Write-Host "`n========================================================" -ForegroundColor Green
 Write-Host "  ALL NATIVE C++ UNIT & SCENARIO TESTS PASSED (100% SUCCESS)!" -ForegroundColor Green
