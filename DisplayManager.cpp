@@ -6,6 +6,9 @@ DisplayManager::DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, Ev
     : tft(tftRef), state(stateRef), log(logRef), currentScreen(SCREEN_GAME),
       rollWinner(0), animStartTime(0), lastAnimTick(0), animCurrentHighlight(0),
       animDelay(50), animSettled(false) {
+    for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+        lastRenderedDead[i] = false;
+    }
 }
 
 void DisplayManager::begin() {
@@ -19,6 +22,7 @@ void DisplayManager::returnToGameScreen() {
     tft.fillScreen(COLOR_BLACK);
     drawStaticLayout();
     for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+        lastRenderedDead[i] = state.getPlayer(i).isDead;
         renderQuadrant(i, true);
     }
 }
@@ -54,6 +58,11 @@ uint16_t DisplayManager::getPlayerColor(uint8_t playerIdx) {
     }
 }
 
+uint16_t DisplayManager::getQuadrantBg(uint8_t playerIdx) const {
+    if (playerIdx >= NUM_PLAYERS) return COLOR_BLACK;
+    return state.getPlayer(playerIdx).isDead ? COLOR_DEAD_BG : COLOR_BLACK;
+}
+
 void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
     if (playerIdx >= NUM_PLAYERS) return;
 
@@ -61,8 +70,7 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
     getQuadrantBounds(playerIdx, qx, qy, qw, qh);
     const PlayerState& p = state.getPlayer(playerIdx);
     uint16_t pColor = getPlayerColor(playerIdx);
-
-    uint16_t bgColor = p.isDead ? COLOR_DEAD_BG : COLOR_BLACK;
+    uint16_t bgColor = getQuadrantBg(playerIdx);
 
     if (forceFullRedraw) {
         // Clear quadrant interior (leaving 1px border for divider)
@@ -88,7 +96,7 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
     // Vertical column divider between Life and Commander Damage
     tft.drawFastVLine(qx + 82, qy + 22, 66, COLOR_DIVIDER);
 
-    // 2. Dual Counter Display (Life on Left, Commander Damage on Right)
+    // 2. Dual Counter Display (Life on Left, 3 Opponent Commander Damages on Right)
     // Clear left and right counter areas
     tft.fillRect(qx + 4, qy + 22, 76, 66, bgColor);
     tft.fillRect(qx + 84, qy + 22, 72, 66, bgColor);
@@ -100,7 +108,7 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
     tft.setCursor(qx + 10, qy + 24);
     tft.printf("%sLIFE", isLifeActive ? "> " : "  ");
 
-    // Big Life Number (Text Size 4)
+    // Big Life Number (Text Size 4, or 3 for 4+ digits)
     char lifeStr[12];
     snprintf(lifeStr, sizeof(lifeStr), "%d", p.life);
     uint8_t lifeLen = strlen(lifeStr);
@@ -115,33 +123,52 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
     tft.setCursor(lifeX, lifeY);
     tft.print(lifeStr);
 
-    // --- RIGHT COLUMN: COMMANDER DAMAGE (Separate Counter, Lethal at 21) ---
+    // --- RIGHT COLUMN: 3 OPPONENT COMMANDER DAMAGES ---
     bool isCmdrActive = (p.activeMode == MODE_CMDR);
     tft.setTextSize(1);
     tft.setTextColor(isCmdrActive ? pColor : COLOR_LIGHTGREY, bgColor);
-    tft.setCursor(qx + 90, qy + 24);
-    tft.printf("%sCMDR", isCmdrActive ? "> " : "  ");
+    tft.setCursor(qx + 88, qy + 24);
+    tft.print("CMDR DMG");
 
-    // Commander Damage Number (Text Size 3)
-    char cmdrStr[12];
-    snprintf(cmdrStr, sizeof(cmdrStr), "%d", p.cmdr);
-    uint8_t cmdrLen = strlen(cmdrStr);
-    int16_t cmdrTotalW = cmdrLen * 18;
-    int16_t cmdrX = qx + 84 + (72 - cmdrTotalW) / 2;
-    int16_t cmdrY = qy + 40;
+    uint8_t rowIdx = 0;
+    for (uint8_t opp = 0; opp < NUM_PLAYERS; opp++) {
+        if (opp == playerIdx) continue;
 
-    uint16_t cmdrColor = (p.cmdr <= 0) ? COLOR_DEAD_TEXT : 
-                         (isCmdrActive ? COLOR_WHITE : COLOR_LIGHTGREY);
-    tft.setTextColor(cmdrColor, bgColor);
-    tft.setTextSize(3);
-    tft.setCursor(cmdrX, cmdrY);
-    tft.print(cmdrStr);
+        int16_t rowY = qy + 36 + (rowIdx * 16);
+        bool isSelected = (isCmdrActive && p.cmdrSource == opp);
+        uint8_t dmg = p.cmdrDmg[opp];
+        uint16_t oppColor = getPlayerColor(opp);
 
-    // "21 max" hint under commander damage
-    tft.setTextSize(1);
-    tft.setTextColor(COLOR_DARKGREY, bgColor);
-    tft.setCursor(qx + 104, qy + 70);
-    tft.print("21 max");
+        if (isSelected) {
+            // Highlight active selected opponent
+            tft.fillRoundRect(qx + 86, rowY - 1, 68, 14, 2, oppColor);
+            tft.setTextColor(COLOR_BLACK, oppColor);
+        } else {
+            uint16_t labelCol = (dmg >= LETHAL_CMDR_DAMAGE) ? COLOR_DEAD_TEXT : oppColor;
+            tft.setTextColor(labelCol, bgColor);
+        }
+
+        tft.setTextSize(1);
+        tft.setCursor(qx + 89, rowY + 2);
+        tft.printf("P%d", opp + 1);
+
+        // Value
+        if (isSelected) {
+            tft.setTextColor(COLOR_BLACK, oppColor);
+        } else {
+            uint16_t valCol = (dmg >= LETHAL_CMDR_DAMAGE) ? COLOR_DEAD_TEXT : COLOR_WHITE;
+            tft.setTextColor(valCol, bgColor);
+        }
+        tft.setCursor(qx + 120, rowY + 2);
+        tft.printf("%2d", dmg);
+
+        if (dmg >= LETHAL_CMDR_DAMAGE && !isSelected) {
+            tft.setCursor(qx + 138, rowY + 2);
+            tft.print("!");
+        }
+
+        rowIdx++;
+    }
 
     // 3. Footer Status Bar / Lethal Alert
     tft.fillRect(qx + 4, qy + 92, qw - 8, 22, bgColor);
@@ -149,9 +176,19 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
         tft.fillRoundRect(qx + 6, qy + 92, qw - 12, 20, 3, COLOR_DEAD_TEXT);
         tft.setTextColor(COLOR_WHITE);
         tft.setTextSize(1);
-        tft.setCursor(qx + 14, qy + 98);
-        if (p.cmdr <= 0) {
-            tft.print("*** DEAD: 0 CMDR ***");
+        tft.setCursor(qx + 10, qy + 98);
+
+        // Determine specific cause of death
+        int8_t killerOpp = -1;
+        for (uint8_t opp = 0; opp < NUM_PLAYERS; opp++) {
+            if (opp != playerIdx && p.cmdrDmg[opp] >= LETHAL_CMDR_DAMAGE) {
+                killerOpp = opp;
+                break;
+            }
+        }
+
+        if (killerOpp >= 0) {
+            tft.printf("*** DEAD: 21 CMDR (P%d) ***", killerOpp + 1);
         } else if (p.life <= 0) {
             tft.print("*** DEAD: 0 LIFE ***");
         } else {
@@ -167,10 +204,14 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
             tft.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
             tft.setCursor(qx + 8, qy + 98);
             tft.printf(" [ADJUSTING TAX: +%d] ", p.tax);
+        } else if (p.activeMode == MODE_CMDR) {
+            tft.setTextColor(COLOR_LIGHTGREY, bgColor);
+            tft.setCursor(qx + 8, qy + 98);
+            tft.printf("Dial: CMDR P%d (+/-)", p.cmdrSource + 1);
         } else {
             tft.setTextColor(COLOR_LIGHTGREY, bgColor);
             tft.setCursor(qx + 12, qy + 98);
-            tft.printf("Dial: %s (+/-)", isLifeActive ? "LIFE" : "COMMANDER");
+            tft.print("Dial: LIFE (+/-)");
         }
     }
 
@@ -182,8 +223,10 @@ void DisplayManager::updateDirtyQuadrants() {
     if (currentScreen != SCREEN_GAME) return;
 
     for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
-        if (state.getPlayer(i).dirty) {
-            renderQuadrant(i, false);
+        bool deadChanged = (state.getPlayer(i).isDead != lastRenderedDead[i]);
+        if (state.getPlayer(i).dirty || deadChanged) {
+            lastRenderedDead[i] = state.getPlayer(i).isDead;
+            renderQuadrant(i, deadChanged);
         }
     }
 }
@@ -264,6 +307,7 @@ void DisplayManager::startRollAnimation(uint8_t winningPlayer, uint32_t currentM
     tft.fillScreen(COLOR_BLACK);
     drawStaticLayout();
     for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+        lastRenderedDead[i] = state.getPlayer(i).isDead;
         renderQuadrant(i, true);
     }
 }
@@ -282,11 +326,13 @@ bool DisplayManager::updateAnimation(uint32_t currentMs) {
             static const uint8_t CYCLE[4] = { 0, 1, 3, 2 };
             uint8_t currentP = CYCLE[animCurrentHighlight];
 
-            // Clear previous highlight border
+            // Clear previous highlight borders using each quadrant's actual background color
             for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
                 int16_t qx, qy, qw, qh;
                 getQuadrantBounds(i, qx, qy, qw, qh);
-                tft.drawRect(qx + 2, qy + 2, qw - 4, qh - 4, COLOR_BLACK);
+                uint16_t bg = getQuadrantBg(i);
+                tft.drawRect(qx + 2, qy + 2, qw - 4, qh - 4, bg);
+                tft.drawRect(qx + 3, qy + 3, qw - 6, qh - 6, bg);
             }
 
             // Draw bright highlight on current quadrant
@@ -310,7 +356,7 @@ bool DisplayManager::updateAnimation(uint32_t currentMs) {
                 int16_t bx = 30, by = 90, bw = 260, bh = 55;
                 tft.fillRoundRect(bx, by, bw, bh, 6, COLOR_DARKGREY);
                 tft.drawRoundRect(bx, by, bw, bh, 6, getPlayerColor(rollWinner));
-                tft.drawRoundRect(bx + 1, by + 1, bw - 2, bh - 2, COLOR_WHITE);
+                tft.drawRoundRect(bx + 1, by + 1, bw - 2, bh - 2, 5, COLOR_WHITE);
 
                 tft.setTextColor(COLOR_WHITE);
                 tft.setTextSize(2);
@@ -332,4 +378,3 @@ bool DisplayManager::updateAnimation(uint32_t currentMs) {
     }
     return true;
 }
-

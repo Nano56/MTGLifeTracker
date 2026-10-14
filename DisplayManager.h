@@ -44,12 +44,16 @@ public:
     // Full screen reset / redraw after log or reset
     void returnToGameScreen();
 
+    // Get background color for a player quadrant
+    uint16_t getQuadrantBg(uint8_t playerIdx) const;
+
 private:
     Adafruit_ILI9341& tft;
     GameState& state;
     EventLog& log;
 
     ScreenMode currentScreen;
+    bool lastRenderedDead[NUM_PLAYERS];
 
     // Roll animation state
     uint8_t rollWinner;
@@ -66,4 +70,3 @@ private:
 };
 
 #endif // DISPLAY_MANAGER_H
-
