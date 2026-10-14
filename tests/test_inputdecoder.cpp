@@ -61,7 +61,16 @@ int main() {
     TEST_ASSERT(evt == BTN_EVENT_SHORT_CLICK);
     printf("  [PASS] Clean short click (250ms hold) detected on release\n");
 
-    // 6. Button Debounce: Long Press (> 1500ms)
+    // 6. Button Debounce: Double Click Detection (< 350ms window)
+    // First click was released at t=490. Second press begins at t=600 (110ms later)
+    btn.update(true, 600);
+    btn.update(true, 640);
+    btn.update(false, 700);
+    evt = btn.update(false, 740); // Released at t=740 (within 350ms of t=490)
+    TEST_ASSERT(evt == BTN_EVENT_DOUBLE_CLICK);
+    printf("  [PASS] Rapid second click emitted BTN_EVENT_DOUBLE_CLICK\n");
+
+    // 7. Button Debounce: Long Press (> 1500ms default)
     btn.reset();
     btn.update(true, 1000); // Press begins at t=1000
     btn.update(true, 1050); // Debounce passed
@@ -77,7 +86,17 @@ int main() {
     TEST_ASSERT(evt == BTN_EVENT_NONE);
     printf("  [PASS] Long press (1500ms+) triggers immediately and suppresses release click\n");
 
+    // 8. Custom 3000ms Player Reset Hold Threshold
+    btn.reset();
+    btn.setLongPressMs(PLAYER_RESET_LONG_PRESS_MS); // 3000ms
+    btn.update(true, 3000);
+    btn.update(true, 3050);
+    evt = btn.update(true, 5000); // Held 2000ms: should NOT trigger at 1500ms
+    TEST_ASSERT(evt == BTN_EVENT_NONE);
+    evt = btn.update(true, 6050); // Held 3050ms >= 3000ms
+    TEST_ASSERT(evt == BTN_EVENT_LONG_PRESS);
+    printf("  [PASS] Custom 3000ms player reset long press threshold verified\n");
+
     printf(">>> test_inputdecoder: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }
-

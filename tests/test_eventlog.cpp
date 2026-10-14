@@ -44,10 +44,16 @@ int main() {
     EventLog::formatEvent(evt, strBuf, sizeof(strBuf));
     TEST_ASSERT(strcmp(strBuf, "[01:15] P2: Poison +1 (1)") == 0);
 
-    log.log(80000, 2, EVT_CMDR_CHANGE, 7, 7);
+    // Commander damage with opponent source and resulting life
+    log.log(80000, 2, EVT_CMDR_CHANGE, 7, 7, 0, 33);
     TEST_ASSERT(log.getLatest(evt));
     EventLog::formatEvent(evt, strBuf, sizeof(strBuf));
-    TEST_ASSERT(strcmp(strBuf, "[01:20] P3: Cmdr +7 (7)") == 0);
+    TEST_ASSERT(strcmp(strBuf, "[01:20] P3: Cmdr P1 +7 (07) | Life 33") == 0);
+
+    log.log(85000, 2, EVT_PLAYER_RESET, 0, 40);
+    TEST_ASSERT(log.getLatest(evt));
+    EventLog::formatEvent(evt, strBuf, sizeof(strBuf));
+    TEST_ASSERT(strcmp(strBuf, "[01:25] P3: Reset to 40 Life") == 0);
 
     log.log(90000, 3, EVT_TAX_CHANGE, 2, 2);
     TEST_ASSERT(log.getLatest(evt));
@@ -85,4 +91,3 @@ int main() {
     printf(">>> test_eventlog: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }
-

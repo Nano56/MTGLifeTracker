@@ -15,7 +15,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 REM 1. GameState Native Test
 echo.
-echo [1/4] Compiling and running test_gamestate...
+echo [1/5] Compiling and running test_gamestate...
 g++ -std=c++17 -Wall -Wextra -O2 tests\test_gamestate.cpp GameState.cpp EventLog.cpp -o tests\test_gamestate.exe
 if %ERRORLEVEL% NEQ 0 (
     echo [FAIL] Compilation failed for test_gamestate
@@ -29,7 +29,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 REM 2. EventLog Native Test
 echo.
-echo [2/4] Compiling and running test_eventlog...
+echo [2/5] Compiling and running test_eventlog...
 g++ -std=c++17 -Wall -Wextra -O2 tests\test_eventlog.cpp EventLog.cpp -o tests\test_eventlog.exe
 if %ERRORLEVEL% NEQ 0 (
     echo [FAIL] Compilation failed for test_eventlog
@@ -43,7 +43,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 REM 3. InputDecoder Native Test
 echo.
-echo [3/4] Compiling and running test_inputdecoder...
+echo [3/5] Compiling and running test_inputdecoder...
 g++ -std=c++17 -Wall -Wextra -O2 tests\test_inputdecoder.cpp InputDecoder.cpp -o tests\test_inputdecoder.exe
 if %ERRORLEVEL% NEQ 0 (
     echo [FAIL] Compilation failed for test_inputdecoder
@@ -57,7 +57,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 REM 4. Scenarios Native Test
 echo.
-echo [4/4] Compiling and running test_scenarios...
+echo [4/5] Compiling and running test_scenarios...
 g++ -std=c++17 -Wall -Wextra -O2 tests\test_scenarios.cpp GameState.cpp EventLog.cpp AppController.cpp -o tests\test_scenarios.exe
 if %ERRORLEVEL% NEQ 0 (
     echo [FAIL] Compilation failed for test_scenarios
@@ -69,13 +69,31 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-REM 5. Build Desktop CLI Simulator
+REM 5. Display Native Test (if present)
+if exist "tests\test_display.cpp" (
+    echo.
+    echo [5/5] Compiling and running test_display...
+    g++ -std=c++17 -Wall -Wextra -O2 -Itests tests\test_display.cpp DisplayManager.cpp GameState.cpp EventLog.cpp -o tests\test_display.exe
+    if %ERRORLEVEL% NEQ 0 (
+        echo [FAIL] Compilation failed for test_display
+        exit /b 1
+    )
+    tests\test_display.exe
+    if %ERRORLEVEL% NEQ 0 (
+        echo [FAIL] test_display failed
+        exit /b 1
+    )
+)
+
+REM 6. Build Desktop CLI Simulator
 echo.
 echo [*] Building Desktop CLI Simulator (tools\cli_simulator.exe)...
 g++ -std=c++17 -Wall -Wextra -O2 tools\cli_simulator.cpp GameState.cpp EventLog.cpp AppController.cpp -o tools\cli_simulator.exe
-if %ERRORLEVEL% EQU 0 (
-    echo   [OK] tools\cli_simulator.exe built! Run 'tools\cli_simulator.exe' to test in terminal.
+if %ERRORLEVEL% NEQ 0 (
+    echo [FAIL] Compilation failed for tools\cli_simulator.exe
+    exit /b 1
 )
+echo   [OK] tools\cli_simulator.exe built! Run 'tools\cli_simulator.exe' to test in terminal.
 
 echo.
 echo ========================================================

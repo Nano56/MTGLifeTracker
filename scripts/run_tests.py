@@ -21,24 +21,36 @@ def main():
         {
             "name": "test_gamestate",
             "sources": ["tests/test_gamestate.cpp", "GameState.cpp", "EventLog.cpp"],
-            "binary": "tests/test_gamestate.exe"
+            "binary": "tests/test_gamestate.exe",
+            "extra_flags": []
         },
         {
             "name": "test_eventlog",
             "sources": ["tests/test_eventlog.cpp", "EventLog.cpp"],
-            "binary": "tests/test_eventlog.exe"
+            "binary": "tests/test_eventlog.exe",
+            "extra_flags": []
         },
         {
             "name": "test_inputdecoder",
             "sources": ["tests/test_inputdecoder.cpp", "InputDecoder.cpp"],
-            "binary": "tests/test_inputdecoder.exe"
+            "binary": "tests/test_inputdecoder.exe",
+            "extra_flags": []
         },
         {
             "name": "test_scenarios",
             "sources": ["tests/test_scenarios.cpp", "GameState.cpp", "EventLog.cpp", "AppController.cpp"],
-            "binary": "tests/test_scenarios.exe"
+            "binary": "tests/test_scenarios.exe",
+            "extra_flags": []
         }
     ]
+
+    if os.path.exists("tests/test_display.cpp"):
+        test_targets.append({
+            "name": "test_display",
+            "sources": ["tests/test_display.cpp", "DisplayManager.cpp", "GameState.cpp", "EventLog.cpp"],
+            "binary": "tests/test_display.exe",
+            "extra_flags": ["-Itests"]
+        })
 
     all_passed = True
     total_suites = len(test_targets)
@@ -46,7 +58,7 @@ def main():
 
     for target in test_targets:
         print(f"\n[BUILD] Compiling {target['name']}...")
-        compile_cmd = ["g++", "-std=c++17", "-Wall", "-Wextra", "-O2"] + target["sources"] + ["-o", target["binary"]]
+        compile_cmd = ["g++", "-std=c++17", "-Wall", "-Wextra", "-O2"] + target.get("extra_flags", []) + target["sources"] + ["-o", target["binary"]]
         res = subprocess.run(compile_cmd, capture_output=True, text=True)
         if res.returncode != 0:
             print(f"[FAIL] Compilation error in {target['name']}:\n{res.stderr}")
@@ -62,9 +74,19 @@ def main():
         else:
             passed_suites += 1
 
+    # Also build desktop CLI simulator
+    print("\n[BUILD] Compiling tools/cli_simulator.exe...")
+    cli_cmd = ["g++", "-std=c++17", "-Wall", "-Wextra", "-O2", "tools/cli_simulator.cpp", "GameState.cpp", "EventLog.cpp", "AppController.cpp", "-o", "tools/cli_simulator.exe"]
+    res_cli = subprocess.run(cli_cmd, capture_output=True, text=True)
+    if res_cli.returncode != 0:
+        print(f"[FAIL] Compilation error in tools/cli_simulator.exe:\n{res_cli.stderr}")
+        all_passed = False
+    else:
+        print("  [OK] tools/cli_simulator.exe built successfully.")
+
     print("\n" + "=" * 60)
     if all_passed and passed_suites == total_suites:
-        print(f"  SUCCESS: ALL {passed_suites}/{total_suites} TEST SUITES PASSED (100% COVERAGE)!")
+        print(f"  SUCCESS: ALL {passed_suites}/{total_suites} TEST SUITES PASSED!")
         print("=" * 60)
         return 0
     else:
@@ -74,4 +96,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
