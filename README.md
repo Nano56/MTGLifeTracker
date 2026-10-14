@@ -6,7 +6,7 @@ A dedicated microcontroller-based physical life counter designed for Magic: The 
 Commander games present unique tabletop challenges:
 - 4 players seated around a table.
 - Starting life total: 40 per player.
-- Additional counters: Commander Health (starts at 21, lethal at 0), Poison (lethal at 10), Commander Tax, and turn order.
+- Additional counters: Commander Combat Damage (tracked per opponent commander, lethal at $\ge 21$ from a single commander, reduces life in tandem per MTG CR 903.10a / 704.6c), Poison (lethal at 10), Commander Tax (+2 mana per cast), and turn order.
 
 This project builds an intuitive, easy-to-read, tabletop hardware device for tracking game state without relying on phone apps that drain phone batteries or go to sleep.
 
@@ -24,14 +24,17 @@ MTGLifeTracker/
 │   ├── run_tests.ps1           # PowerShell native test runner
 │   ├── run_tests.bat           # Windows CMD batch test runner
 │   └── run_tests.py            # Cross-platform Python test runner
-├── tests/                      # 100% native C++ automated test suite
-│   ├── test_gamestate.cpp      # Rules, counter arithmetic, lethal conditions
+├── tests/                      # 100% native host C++ automated test suite (no emulator needed)
+│   ├── test_gamestate.cpp      # Rules, counter arithmetic, MTG lethal conditions
 │   ├── test_eventlog.cpp       # Ring buffer FIFO and string formatting
-│   ├── test_inputdecoder.cpp   # Quadrature Gray-code decoding and debouncing
-│   └── test_scenarios.cpp      # Multi-turn combat match simulations
+│   ├── test_inputdecoder.cpp   # Quadrature Gray-code decoding, debouncing, double-clicks
+│   ├── test_scenarios.cpp      # Multi-turn combat match simulations
+│   ├── test_display.cpp        # Native compilation and layout validation of DisplayManager
+│   ├── Adafruit_GFX.h          # Host mock header for native display testing
+│   └── Adafruit_ILI9341.h      # Host mock header for native display testing
 ├── tools/                      # Developer tools & desktop utilities
 │   └── cli_simulator.cpp       # Interactive ANSI terminal simulator (HID agnostic)
-├── diagram.json                # Wokwi circuit simulation wiring
+├── diagram.json                # Wokwi circuit simulation wiring (ESP32 + ILI9341 + 4x KY-040)
 ├── libraries.txt               # Wokwi Arduino library dependencies
 ├── wokwi.toml                  # Wokwi simulation configuration
 ├── sketch.ino                  # Main firmware setup and loop
@@ -40,7 +43,8 @@ MTGLifeTracker/
 ├── EventLog.h / .cpp           # 50-entry circular event log
 ├── InputDecoder.h / .cpp       # KY-040 rotary decoder & button debouncer
 ├── AppController.h / .cpp      # Normalized HID action dispatcher
-└── DisplayManager.h / .cpp     # 320x240 ILI9341 4-quadrant UI engine
+├── DisplayManager.h / .cpp     # 320x240 ILI9341 4-quadrant UI engine
+└── to_fix.md                   # Project bug tracker & resolved remediation audit
 ```
 
 ---
@@ -48,7 +52,7 @@ MTGLifeTracker/
 ## Validation & Testing
 
 ### 1. Run Native Automated Tests
-Execute all 162 unit and scenario tests locally without opening any emulator:
+Execute all 242 unit, display, and scenario tests locally without opening any emulator:
 ```powershell
 .\scripts\run_tests.ps1
 ```
@@ -68,12 +72,13 @@ Open `diagram.json` in VS Code / Antigravity IDE with the Wokwi extension and cl
 ## Features Implemented
 - [x] 4-player quadrant display on 320×240 ILI9341 color TFT.
 - [x] Starting life total: 40 per player.
-- [x] Commander Health: starts at 21, counted separately, lethal at $\le 0$.
-- [x] Dual-counter view: Life and Commander Health displayed side-by-side.
+- [x] Commander Damage per opponent: tracked independently for each opponent, reduces life in tandem, lethal at $\ge 21$ from any single commander (CR 903.10a / 704.6c).
+- [x] Dual-counter view: Large Life total alongside 3-row opponent Commander Damage breakdown.
+- [x] Instant return to Life mode: double-click knob jumps straight to LIFE from any counter mode.
 - [x] Poison counter tracking: lethal at 10.
 - [x] Commander tax tracker: increments by $\pm 2$ mana per cast.
-- [x] 50-entry circular event log streaming live to USB Serial.
-- [x] Random First Player roll roulette animation.
-- [x] Dedicated tactile Game Reset button (hold 2s for full reset).
-- [x] Zero-flicker partial display updates.
-- [x] 100% automated native C++ test coverage.
+- [x] 50-entry circular event log streaming live to USB Serial and viewable on screen (double-click table button).
+- [x] Random First Player roll roulette animation with highlight clearing.
+- [x] Dedicated tactile Game Reset button (hold 1.5s for full reset; single player reset requires 3s hold).
+- [x] Safe ESP32 pin budget: avoids boot strapping hazards (GPIO 12 and GPIO 2 remapped to GPIO 32 and GPIO 34).
+- [x] 100% native host C++ test validation with mock GFX engine.
