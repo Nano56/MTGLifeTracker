@@ -60,8 +60,11 @@ Magic: The Gathering (MTG) Commander (EDH) typically involves:
 
 The standard ESP32 38-pin DevKit provides:
 - **Standard GPIOs:** Bidirectional with internal pull-ups/pull-downs.
-- **Input-Only GPIs (GPIO 34, 35, 36, 39):** Ideal for encoder inputs and buttons (external or software pull-ups).
-- **Strapping Pins (GPIO 0, 2, 12, 15):** Assigned carefully so boot states are unaffected.
+- **Input-Only GPIs (GPIO 34, 35, 36, 39):** Ideal for encoder inputs and buttons (external or module pull-ups).
+- **Strapping Pins Analysis:**
+  - *GPIO 12 (MTDI):* **AVOIDED.** Pulling GPIO 12 HIGH at power-up sets flash voltage to 1.8V instead of 3.3V, causing a boot loop. P3_SW is assigned to **GPIO 32** instead.
+  - *GPIO 2:* **AVOIDED.** Pulling GPIO 2 HIGH via KY-040 pull-ups blocks serial flashing/download mode. P4_DT is assigned to **GPIO 34** (input-only GPI with module pull-up) instead.
+  - *GPIO 5 & GPIO 15:* Safe; their hardware defaults match the unpressed/idle HIGH state of encoder lines.
 
 | Subsystem | Signal Name | ESP32 Pin | Notes / Hardware Detail |
 | :--- | :--- | :--- | :--- |
@@ -79,18 +82,19 @@ The standard ESP32 38-pin DevKit provides:
 | | `P2_SW` | GPIO 16 (RX2) | Integrated Push-Button (Right side) |
 | **Player 3 Encoder (Left)** | `P3_CLK` | GPIO 33 | Quadrature Channel A (Left side) |
 | | `P3_DT` | GPIO 14 | Quadrature Channel B (Left side) |
-| | `P3_SW` | GPIO 12 | Integrated Push-Button (Left side) |
+| | `P3_SW` | GPIO 32 | Integrated Push-Button (Safe non-strapping pin) |
 | **Player 4 Encoder (Right)** | `P4_CLK` | GPIO 4 | Quadrature Channel A (Right side) |
-| | `P4_DT` | GPIO 2 | Quadrature Channel B (Right side) |
+| | `P4_DT` | GPIO 34 | Quadrature Channel B (Input-only GPI with KY-040 pull-up) |
 | | `P4_SW` | GPIO 15 | Integrated Push-Button (Right side) |
-| **Global Reset Button** | `BTN_RESET` | GPIO 13 | Tactile button (Left side) |
+| **Global Reset Button** | `BTN_RESET` | GPIO 13 | Tactile button (Active Low, internal pull-up) |
 
-**Summary:** 20 GPIO pins utilized. 6+ pins remain available for expansions (e.g., Piezo buzzer for audio cues, WS2812 status LED, or LiPo battery voltage sensing).
+**Summary:** 18 GPIO pins utilized. 8+ pins remain available for expansions (e.g., Piezo buzzer for audio cues, WS2812 status LED, or LiPo battery voltage sensing).
 
 ---
 
 ## 4. Power & Electrical Considerations
 - **Operating Voltage:** 3.3V logic level (native to ESP32 and ILI9341).
+- **CRITICAL - Encoder Power:** All KY-040 encoder breakout modules must be powered from the **3.3V rail (`3V3`)**, NEVER from 5V (`VIN`). Powering KY-040 from 5V would expose ESP32 GPIO inputs to 5V via on-board pull-up resistors, which can degrade or destroy the microcontroller.
 - **Prototyping Power:** Standard 5V USB-C or Micro-USB cable connected directly to the ESP32 dev board regulator.
 - **Portable Expansion (Future):** Single-cell 3.7V LiPo battery with a TP4056 charging + boost module providing 5V to the board VIN pin.
 

@@ -74,9 +74,9 @@
 
     [ "p3_knob:CLK", "esp:D33", "green", [ "h20", "v240" ] ],
     [ "p3_knob:DT", "esp:D14", "blue", [ "h25", "v255" ] ],
-    [ "p3_knob:SW", "esp:D12", "orange", [ "h30", "v265" ] ],
+    [ "p3_knob:SW", "esp:D32", "orange", [ "h30", "v265" ] ],
     [ "p3_knob:GND", "esp:GND.2", "black", [ "h35", "v280" ] ],
-    [ "p3_knob:VCC", "esp:VIN", "red", [ "h15", "v310" ] ],
+    [ "p3_knob:VCC", "esp:3V3", "red", [ "h15", "v310" ] ],
 
     [ "btn_reset:1.l", "esp:GND.2", "black", [] ],
     [ "btn_reset:2.l", "esp:D13", "red", [] ],
@@ -88,7 +88,7 @@
     [ "p2_knob:VCC", "esp:3V3", "red", [ "h35", "v530" ] ],
 
     [ "p4_knob:CLK", "esp:D4", "green", [ "h15", "v320" ] ],
-    [ "p4_knob:DT", "esp:D2", "blue", [ "h20", "v330" ] ],
+    [ "p4_knob:DT", "esp:D34", "blue", [ "h20", "v330" ] ],
     [ "p4_knob:SW", "esp:D15", "orange", [ "h25", "v340" ] ],
     [ "p4_knob:GND", "esp:GND.1", "black", [ "h30", "v350" ] ],
     [ "p4_knob:VCC", "esp:3V3", "red", [ "h35", "v360" ] ]
