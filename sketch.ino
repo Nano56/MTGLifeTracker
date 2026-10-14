@@ -36,15 +36,24 @@ void setup() {
   Serial.println("  MTG COMMANDER LIFE TRACKER - FIRMWARE v1.0");
   Serial.println("==================================================");
 
-  // Configure rotary encoder pins (active-low with internal pullups)
+  // Configure rotary encoder pins (active-low)
   for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
     pinMode(ENCODER_CLK_PINS[i], INPUT_PULLUP);
-    pinMode(ENCODER_DT_PINS[i],  INPUT_PULLUP);
+    // Pin 34..39 on ESP32 are input-only (GPI); KY-040 breakout board has on-module pull-up
+    if (ENCODER_DT_PINS[i] >= 34) {
+      pinMode(ENCODER_DT_PINS[i], INPUT);
+    } else {
+      pinMode(ENCODER_DT_PINS[i], INPUT_PULLUP);
+    }
     pinMode(ENCODER_SW_PINS[i],  INPUT_PULLUP);
+
+    // Player knob hold threshold: 3000 ms to prevent accidental player reset
+    rotaryButtons[i].setLongPressMs(PLAYER_RESET_LONG_PRESS_MS);
   }
 
-  // Configure table reset/roll button
+  // Configure table reset/roll button (1500 ms hold for full table reset)
   pinMode(BTN_RESET, INPUT_PULLUP);
+  tableButton.setLongPressMs(TABLE_RESET_LONG_PRESS_MS);
 
   // Seed random generator with analog noise on unconnected pin
   randomSeed(analogRead(36) + esp_random());
@@ -52,9 +61,9 @@ void setup() {
   // Initialize display and render starting 4-player layout
   displayMgr.begin();
 
-  Serial.println("[SYS] Ready. 4 Players @ 40 Life.");
-  Serial.println("[SYS] Turn knob: +/- Counter | Click knob: Cycle Mode | Long press knob: Reset Player");
-  Serial.println("[SYS] Red Button: Click for First Player Roll | Hold (2s) for Full Game Reset\n");
+  Serial.printf("[SYS] Ready. 4 Players @ %d Life.\n", STARTING_LIFE);
+  Serial.println("[SYS] Turn knob: +/- Counter | Click knob: Cycle Mode | Double-click: Return to Life");
+  Serial.println("[SYS] Hold knob (3s): Reset Player | Red Button: Click to Roll | Double-click: Event Log | Hold (1.5s): Reset Game\n");
 }
 
 void loop() {
@@ -102,13 +111,24 @@ void loop() {
         displayMgr.returnToGameScreen();
       }
       controller.dispatchAction(i, ACT_CYCLE_MODE, currentMs);
-      Serial.printf("[SYS] P%d switched mode to %s\n", i + 1, GameState::getModeName(gameState.getPlayer(i).activeMode));
+      const PlayerState& p = gameState.getPlayer(i);
+      if (p.activeMode == MODE_CMDR) {
+        Serial.printf("[SYS] P%d switched mode to CMDR (Source P%d)\n", i + 1, p.cmdrSource + 1);
+      } else {
+        Serial.printf("[SYS] P%d switched mode to %s\n", i + 1, GameState::getModeName(p.activeMode));
+      }
+    } else if (swEvt == BTN_EVENT_DOUBLE_CLICK) {
+      if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
+        displayMgr.returnToGameScreen();
+      }
+      controller.dispatchAction(i, ACT_RETURN_TO_LIFE, currentMs);
+      Serial.printf("[SYS] P%d returned to LIFE mode\n", i + 1);
     } else if (swEvt == BTN_EVENT_LONG_PRESS) {
       if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
         displayMgr.returnToGameScreen();
       }
       controller.dispatchAction(i, ACT_RESET_PLAYER, currentMs);
-      Serial.printf("[SYS] P%d reset to 40 life\n", i + 1);
+      Serial.printf("[SYS] P%d reset to %d life\n", i + 1, STARTING_LIFE);
     }
   }
 
@@ -129,15 +149,19 @@ void loop() {
 
       Serial.printf("\n[SYS] *** First Player Roll: P%d Goes First! ***\n\n", winner + 1);
     }
+  } else if (rstEvt == BTN_EVENT_DOUBLE_CLICK) {
+    // Double click toggles Event Log screen
+    displayMgr.toggleEventLogScreen();
+    Serial.println("[SYS] Toggled Match Event Log screen");
   } else if (rstEvt == BTN_EVENT_LONG_PRESS) {
     // Full Table Game Reset via controller
     controller.dispatchAction(0, ACT_RESET_GAME, currentMs);
     displayMgr.returnToGameScreen();
-    Serial.println("\n[SYS] === FULL GAME RESET: All players reset to 40 Life ===\n");
+    Serial.printf("\n[SYS] === FULL GAME RESET: All players reset to %d Life ===\n\n", STARTING_LIFE);
   }
 
   // -------------------------------------------------------------
-  // 3. Periodic Controller Tick (Auto-Return to LIFE after 5s)
+  // 3. Periodic Controller Tick
   // -------------------------------------------------------------
   controller.tick(currentMs);
 

@@ -32,6 +32,9 @@ class ButtonDebouncer {
 public:
     ButtonDebouncer();
 
+    // Configure long press duration threshold (default: LONG_PRESS_MS)
+    void setLongPressMs(uint32_t ms);
+
     // Update with current pin level (true if pressed / LOW on active-low pin) and timestamp.
     // Returns ButtonEvent if an event triggered this tick.
     ButtonEvent update(bool isPressed, uint32_t currentMs);
@@ -49,6 +52,7 @@ private:
     bool lastRawLevel;
     uint32_t lastDebounceTime;
     uint32_t pressStartTime;
+    uint32_t longPressThresholdMs;
     bool longPressEmitted;
 
     // Double-click tracking
@@ -57,4 +61,3 @@ private:
 };
 
 #endif // INPUT_DECODER_H
-

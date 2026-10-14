@@ -13,12 +13,15 @@ void EventLog::clear() {
     memset(buffer, 0, sizeof(buffer));
 }
 
-void EventLog::log(uint32_t timestampMs, uint8_t player, uint8_t type, int16_t delta, int16_t newValue) {
+void EventLog::log(uint32_t timestampMs, uint8_t player, uint8_t type, int16_t delta, int16_t newValue,
+                   uint8_t source, int16_t secondaryValue) {
     buffer[head].timestampMs = timestampMs;
     buffer[head].player = player;
     buffer[head].type = type;
+    buffer[head].source = source;
     buffer[head].delta = delta;
     buffer[head].newValue = newValue;
+    buffer[head].secondaryValue = secondaryValue;
 
     head = (head + 1) % EVENT_LOG_CAPACITY;
     if (count < EVENT_LOG_CAPACITY) {
@@ -83,8 +86,13 @@ void EventLog::formatEvent(const GameEvent& evt, char* outBuffer, size_t maxLen)
                      (unsigned)minutes, (unsigned)seconds, playerStr, evt.delta, evt.newValue);
             break;
         case EVT_CMDR_CHANGE:
-            snprintf(outBuffer, maxLen, "[%02u:%02u] %s: Cmdr %+d (%d)", 
-                     (unsigned)minutes, (unsigned)seconds, playerStr, evt.delta, evt.newValue);
+            if (evt.source != SYSTEM_PLAYER_ID) {
+                snprintf(outBuffer, maxLen, "[%02u:%02u] %s: Cmdr P%d %+d (%02d) | Life %d", 
+                         (unsigned)minutes, (unsigned)seconds, playerStr, evt.source + 1, evt.delta, evt.newValue, evt.secondaryValue);
+            } else {
+                snprintf(outBuffer, maxLen, "[%02u:%02u] %s: Cmdr %+d (%d)", 
+                         (unsigned)minutes, (unsigned)seconds, playerStr, evt.delta, evt.newValue);
+            }
             break;
         case EVT_TAX_CHANGE:
             snprintf(outBuffer, maxLen, "[%02u:%02u] %s: Tax %+d (%d)", 
@@ -98,10 +106,13 @@ void EventLog::formatEvent(const GameEvent& evt, char* outBuffer, size_t maxLen)
             snprintf(outBuffer, maxLen, "[%02u:%02u] SYS: P%d Goes First", 
                      (unsigned)minutes, (unsigned)seconds, evt.player + 1);
             break;
+        case EVT_PLAYER_RESET:
+            snprintf(outBuffer, maxLen, "[%02u:%02u] %s: Reset to 40 Life", 
+                     (unsigned)minutes, (unsigned)seconds, playerStr);
+            break;
         default:
             snprintf(outBuffer, maxLen, "[%02u:%02u] %s: Event", 
                      (unsigned)minutes, (unsigned)seconds, playerStr);
             break;
     }
 }
-

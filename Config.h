@@ -32,29 +32,36 @@
 // Player 3 Controls (Bottom-Left)
 #define P3_CLK      33
 #define P3_DT       14
-#define P3_SW       12
+#define P3_SW       32 // Remapped from 12 (MTDI strapping pin hazard)
 
 // Player 4 Controls (Bottom-Right)
 #define P4_CLK      4
-#define P4_DT       2
+#define P4_DT       34 // Remapped from 2 (Boot strapping pin hazard; GPI input-only with KY-040 pullup)
 #define P4_SW       15
 
 // ==========================================
-// GAME RULES CONSTANTS
+// GAME RULES CONSTANTS (MTG Commander EDH)
 // ==========================================
 #define NUM_PLAYERS          4
 #define STARTING_LIFE        40
-#define STARTING_CMDR_HEALTH 21
+#define LETHAL_CMDR_DAMAGE   21
+#define MAX_CMDR_DAMAGE      99
 #define LETHAL_POISON        10
+#define MAX_POISON           99
 #define CMDR_TAX_STEP        2
+#define MAX_TAX              98
+#define MIN_LIFE             -999
+#define MAX_LIFE             999
 
 // ==========================================
 // TIMING & INPUT THRESHOLDS
 // ==========================================
-#define DEBOUNCE_DELAY_MS      35
-#define LONG_PRESS_MS          1500
-#define DOUBLE_CLICK_WINDOW_MS 350
-#define AUTO_RETURN_LIFE_MS    0 // Set to 0 to disable auto-return; modes stay until explicitly cycled
+#define DEBOUNCE_DELAY_MS           35
+#define LONG_PRESS_MS               1500
+#define TABLE_RESET_LONG_PRESS_MS   1500
+#define PLAYER_RESET_LONG_PRESS_MS  3000
+#define DOUBLE_CLICK_WINDOW_MS      350
+#define AUTO_RETURN_LIFE_MS         0 // Set to 0 to disable auto-return; modes stay until explicitly cycled
 
 // ==========================================
 // 16-BIT RGB565 DISPLAY PALETTE

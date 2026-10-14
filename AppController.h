@@ -13,11 +13,12 @@ enum HIDAction {
     ACT_NONE = 0,
     ACT_INCREMENT,        // e.g. Dial CW, "+" button tap, touch "+" zone, UP arrow
     ACT_DECREMENT,        // e.g. Dial CCW, "-" button tap, touch "-" zone, DOWN arrow
-    ACT_CYCLE_MODE,       // e.g. Dial click, mode button tap, touch header badge
-    ACT_RESET_PLAYER,     // e.g. Dial long press, player hold
+    ACT_CYCLE_MODE,       // e.g. Dial single click, mode button tap, touch header badge
+    ACT_RETURN_TO_LIFE,   // e.g. Dial double click -> instant jump to LIFE mode
+    ACT_RESET_PLAYER,     // e.g. Dial long press (3s), player hold
     ACT_ROLL_FIRST,       // e.g. Table button short click, touch "Roll" button
-    ACT_RESET_GAME,       // e.g. Table button long press, touch "Reset All" button
-    ACT_TOGGLE_LOG        // e.g. Double click, touch "Log" button
+    ACT_RESET_GAME,       // e.g. Table button long press (1.5s), touch "Reset All" button
+    ACT_TOGGLE_LOG        // e.g. Table button double click, touch "Log" button
 };
 
 class AppController {
@@ -27,7 +28,7 @@ public:
     // Primary entry point for any HID event
     bool dispatchAction(uint8_t playerIdx, HIDAction action, uint32_t currentMs);
 
-    // Periodic tick to handle time-based rules (e.g. 5-second auto-return to LIFE)
+    // Periodic tick to handle time-based rules
     void tick(uint32_t currentMs);
 
     // Pick a starting player randomly (0..NUM_PLAYERS-1)
@@ -38,4 +39,3 @@ public:
 };
 
 #endif // APP_CONTROLLER_H
-

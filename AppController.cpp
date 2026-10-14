@@ -16,6 +16,10 @@ bool AppController::dispatchAction(uint8_t playerIdx, HIDAction action, uint32_t
             state.cycleMode(playerIdx, currentMs);
             return true;
 
+        case ACT_RETURN_TO_LIFE:
+            state.returnToLife(playerIdx, currentMs);
+            return true;
+
         case ACT_RESET_PLAYER:
             state.resetPlayer(playerIdx, currentMs);
             return true;
@@ -25,9 +29,7 @@ bool AppController::dispatchAction(uint8_t playerIdx, HIDAction action, uint32_t
             return true;
 
         case ACT_ROLL_FIRST: {
-            // Seeded or simulated roll
-            uint8_t winner = currentMs % NUM_PLAYERS;
-            state.recordFirstPlayer(winner, currentMs);
+            rollStartingPlayer(currentMs, currentMs);
             return true;
         }
 
@@ -45,4 +47,3 @@ uint8_t AppController::rollStartingPlayer(uint32_t currentMs, uint32_t seed) {
     state.recordFirstPlayer(winner, currentMs);
     return winner;
 }
-

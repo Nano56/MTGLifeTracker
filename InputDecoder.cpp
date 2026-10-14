@@ -56,7 +56,12 @@ int8_t RotaryDecoder::update(bool clkLevel, bool dtLevel) {
 // -------------------------------------------------------------
 
 ButtonDebouncer::ButtonDebouncer() {
+    longPressThresholdMs = LONG_PRESS_MS;
     reset();
+}
+
+void ButtonDebouncer::setLongPressMs(uint32_t ms) {
+    longPressThresholdMs = ms;
 }
 
 void ButtonDebouncer::reset() {
@@ -70,6 +75,11 @@ void ButtonDebouncer::reset() {
 }
 
 ButtonEvent ButtonDebouncer::update(bool isPressed, uint32_t currentMs) {
+    // Check if double-click window has expired
+    if (waitingForSecondClick && (currentMs - lastClickTime > DOUBLE_CLICK_WINDOW_MS)) {
+        waitingForSecondClick = false;
+    }
+
     // If raw pin level changed, reset debounce timer
     if (isPressed != lastRawLevel) {
         lastDebounceTime = currentMs;
@@ -85,20 +95,26 @@ ButtonEvent ButtonDebouncer::update(bool isPressed, uint32_t currentMs) {
         } else if (!isPressed && state == STATE_PRESSED) {
             state = STATE_RELEASED;
             if (!longPressEmitted) {
-                // Short click detected
-                return BTN_EVENT_SHORT_CLICK;
+                if (waitingForSecondClick && (currentMs - lastClickTime <= DOUBLE_CLICK_WINDOW_MS)) {
+                    waitingForSecondClick = false;
+                    return BTN_EVENT_DOUBLE_CLICK;
+                } else {
+                    waitingForSecondClick = true;
+                    lastClickTime = currentMs;
+                    return BTN_EVENT_SHORT_CLICK;
+                }
             }
         }
     }
 
     // Check long press while still held down
     if (state == STATE_PRESSED && !longPressEmitted) {
-        if ((currentMs - pressStartTime) >= LONG_PRESS_MS) {
+        if ((currentMs - pressStartTime) >= longPressThresholdMs) {
             longPressEmitted = true;
+            waitingForSecondClick = false;
             return BTN_EVENT_LONG_PRESS;
         }
     }
 
     return BTN_EVENT_NONE;
 }
-
