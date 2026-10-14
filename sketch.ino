@@ -2,97 +2,150 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
 
-// Pins for ESP32 hardware VSPI
-#define TFT_CS   21
-#define TFT_DC   22
-#define TFT_RST  -1
+#include "Config.h"
+#include "EventLog.h"
+#include "GameState.h"
+#include "AppController.h"
+#include "InputDecoder.h"
+#include "DisplayManager.h"
 
-#define BTN_RESET 13
-
-// Player 1 Encoder (Left)
-#define P1_CLK 25
-#define P1_DT  26
-#define P1_SW  27
-
-// Player 3 Encoder (Left)
-#define P3_CLK 33
-#define P3_DT  14
-#define P3_SW  12
-
-// Player 2 Encoder (Right)
-#define P2_CLK  5
-#define P2_DT  17 // TX2
-#define P2_SW  16 // RX2
-
-// Player 4 Encoder (Right)
-#define P4_CLK  4
-#define P4_DT   2
-#define P4_SW  15
-
+// Hardware display object
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 
-int counter = 0;
+// Core business logic, HID controller & state
+EventLog matchLog;
+GameState gameState(matchLog);
+AppController controller(gameState, matchLog);
+DisplayManager displayMgr(tft, gameState, matchLog);
+
+// Encoder hardware pin mapping
+const uint8_t ENCODER_CLK_PINS[NUM_PLAYERS] = { P1_CLK, P2_CLK, P3_CLK, P4_CLK };
+const uint8_t ENCODER_DT_PINS[NUM_PLAYERS]  = { P1_DT,  P2_DT,  P3_DT,  P4_DT  };
+const uint8_t ENCODER_SW_PINS[NUM_PLAYERS]  = { P1_SW,  P2_SW,  P3_SW,  P4_SW  };
+
+// Input state decoders
+RotaryDecoder   rotaryDecoders[NUM_PLAYERS];
+ButtonDebouncer rotaryButtons[NUM_PLAYERS];
+ButtonDebouncer tableButton;
 
 void setup() {
   Serial.begin(115200);
-  delay(200);
-  Serial.println("\n==================================");
-  Serial.println("  ESP32 ILI9341 HELLO WORLD TEST  ");
-  Serial.println("==================================");
+  delay(150);
+  
+  Serial.println("\n==================================================");
+  Serial.println("  MTG COMMANDER LIFE TRACKER - FIRMWARE v1.0");
+  Serial.println("==================================================");
 
-  // Initialize display
-  tft.begin();
-  tft.setRotation(1); // Landscape: 320 x 240
+  // Configure rotary encoder pins (active-low with internal pullups)
+  for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+    pinMode(ENCODER_CLK_PINS[i], INPUT_PULLUP);
+    pinMode(ENCODER_DT_PINS[i],  INPUT_PULLUP);
+    pinMode(ENCODER_SW_PINS[i],  INPUT_PULLUP);
+  }
 
-  // 1. Fill background with dark blue
-  tft.fillScreen(ILI9341_NAVY);
+  // Configure table reset/roll button
+  pinMode(BTN_RESET, INPUT_PULLUP);
 
-  // 2. Draw border
-  tft.drawRect(5, 5, 310, 230, ILI9341_YELLOW);
-  tft.drawRect(7, 7, 306, 226, ILI9341_WHITE);
+  // Seed random generator with analog noise on unconnected pin
+  randomSeed(analogRead(36) + esp_random());
 
-  // 3. Header text
-  tft.setTextColor(ILI9341_YELLOW);
-  tft.setTextSize(3);
-  tft.setCursor(45, 30);
-  tft.println("HELLO WORLD!");
+  // Initialize display and render starting 4-player layout
+  displayMgr.begin();
 
-  // 4. Subtitle
-  tft.setTextColor(ILI9341_GREEN);
-  tft.setTextSize(2);
-  tft.setCursor(35, 75);
-  tft.println("MTG Life Tracker");
-
-  tft.setTextColor(ILI9341_CYAN);
-  tft.setTextSize(2);
-  tft.setCursor(65, 110);
-  tft.println("ESP32 Display OK");
-
-  // 5. Instruction line
-  tft.setTextColor(ILI9341_WHITE);
-  tft.setTextSize(1);
-  tft.setCursor(30, 155);
-  tft.println("Simulation running smoothly!");
-
-  Serial.println("Display initialized and test pattern drawn.");
+  Serial.println("[SYS] Ready. 4 Players @ 40 Life.");
+  Serial.println("[SYS] Turn knob: +/- Counter | Click knob: Cycle Mode | Long press knob: Reset Player");
+  Serial.println("[SYS] Red Button: Click for First Player Roll | Hold (2s) for Full Game Reset\n");
 }
 
 void loop() {
-  // Update a live counter to prove the simulation loop is ticking
-  counter++;
+  uint32_t currentMs = millis();
 
-  // Clear previous counter box
-  tft.fillRect(50, 185, 220, 30, ILI9341_BLACK);
-  tft.drawRect(50, 185, 220, 30, ILI9341_DARKGREY);
+  // If a first-player roll animation is running, process its frame
+  if (displayMgr.getScreenMode() == SCREEN_ROLL_ANIMATION) {
+    displayMgr.updateAnimation(currentMs);
+    return;
+  }
 
-  tft.setTextColor(ILI9341_MAGENTA);
-  tft.setTextSize(2);
-  tft.setCursor(65, 192);
-  tft.print("Uptime: ");
-  tft.print(counter);
-  tft.print("s");
+  // -------------------------------------------------------------
+  // 1. Process 4 Rotary Encoders (Rotation & Switch)
+  // -------------------------------------------------------------
+  for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+    // Read quadrature pin levels
+    bool clkLevel = (digitalRead(ENCODER_CLK_PINS[i]) == HIGH);
+    bool dtLevel  = (digitalRead(ENCODER_DT_PINS[i])  == HIGH);
 
-  Serial.printf("Heartbeat: %d seconds\n", counter);
-  delay(1000);
+    int8_t delta = rotaryDecoders[i].update(clkLevel, dtLevel);
+    if (delta != 0) {
+      if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
+        displayMgr.returnToGameScreen();
+      }
+
+      // Dispatch abstract HID action to unified controller
+      HIDAction act = (delta > 0) ? ACT_INCREMENT : ACT_DECREMENT;
+      controller.dispatchAction(i, act, currentMs);
+
+      // Print live event to Serial
+      GameEvent latestEvt;
+      if (matchLog.getLatest(latestEvt)) {
+        char logStr[64];
+        EventLog::formatEvent(latestEvt, logStr, sizeof(logStr));
+        Serial.println(logStr);
+      }
+    }
+
+    // Read encoder switch (active-low)
+    bool isSwPressed = (digitalRead(ENCODER_SW_PINS[i]) == LOW);
+    ButtonEvent swEvt = rotaryButtons[i].update(isSwPressed, currentMs);
+
+    if (swEvt == BTN_EVENT_SHORT_CLICK) {
+      if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
+        displayMgr.returnToGameScreen();
+      }
+      controller.dispatchAction(i, ACT_CYCLE_MODE, currentMs);
+      Serial.printf("[SYS] P%d switched mode to %s\n", i + 1, GameState::getModeName(gameState.getPlayer(i).activeMode));
+    } else if (swEvt == BTN_EVENT_LONG_PRESS) {
+      if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
+        displayMgr.returnToGameScreen();
+      }
+      controller.dispatchAction(i, ACT_RESET_PLAYER, currentMs);
+      Serial.printf("[SYS] P%d reset to 40 life\n", i + 1);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 2. Process Global Table Button (Reset / Roll First / Event Log)
+  // -------------------------------------------------------------
+  bool isResetPressed = (digitalRead(BTN_RESET) == LOW);
+  ButtonEvent rstEvt = tableButton.update(isResetPressed, currentMs);
+
+  if (rstEvt == BTN_EVENT_SHORT_CLICK) {
+    if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
+      // Exit event log view back to game screen
+      displayMgr.returnToGameScreen();
+    } else {
+      // Start Random First Player Roll via controller
+      uint8_t winner = controller.rollStartingPlayer(currentMs, random(0, 1000));
+      displayMgr.startRollAnimation(winner, currentMs);
+
+      Serial.printf("\n[SYS] *** First Player Roll: P%d Goes First! ***\n\n", winner + 1);
+    }
+  } else if (rstEvt == BTN_EVENT_LONG_PRESS) {
+    // Full Table Game Reset via controller
+    controller.dispatchAction(0, ACT_RESET_GAME, currentMs);
+    displayMgr.returnToGameScreen();
+    Serial.println("\n[SYS] === FULL GAME RESET: All players reset to 40 Life ===\n");
+  }
+
+  // -------------------------------------------------------------
+  // 3. Periodic Controller Tick (Auto-Return to LIFE after 5s)
+  // -------------------------------------------------------------
+  controller.tick(currentMs);
+
+  // -------------------------------------------------------------
+  // 4. Render any dirty quadrants with flicker-free partial update
+  // -------------------------------------------------------------
+  displayMgr.updateDirtyQuadrants();
+
+  // Small non-blocking yield for ESP32 RTOS watchdog
+  delay(1);
 }
-
