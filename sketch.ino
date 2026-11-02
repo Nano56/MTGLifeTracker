@@ -82,6 +82,43 @@ static uint8_t getPlayerIndexForKnob(uint8_t knobIdx, uint8_t playerCount) {
 void loop() {
   uint32_t currentMs = millis();
 
+  // If a startup self-test is running, advance it or skip on any user input
+  if (displayMgr.isSelfTestRunning()) {
+    bool hasInput = false;
+
+    // Check rotary encoders
+    for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+      bool clkLevel = (digitalRead(ENCODER_CLK_PINS[i]) == HIGH);
+      bool dtLevel  = (digitalRead(ENCODER_DT_PINS[i])  == HIGH);
+      int8_t delta = rotaryDecoders[i].update(clkLevel, dtLevel);
+      if (delta != 0) {
+        hasInput = true;
+      }
+
+      bool isSwPressed = (digitalRead(ENCODER_SW_PINS[i]) == LOW);
+      ButtonEvent swEvt = rotaryButtons[i].update(isSwPressed, currentMs);
+      if (swEvt != BTN_EVENT_NONE) {
+        hasInput = true;
+      }
+    }
+
+    // Check table button
+    bool isResetPressed = (digitalRead(BTN_RESET) == LOW);
+    ButtonEvent rstEvt = tableButton.update(isResetPressed, currentMs);
+    if (rstEvt != BTN_EVENT_NONE) {
+      hasInput = true;
+    }
+
+    if (hasInput) {
+      displayMgr.skipSelfTest(currentMs);
+      Serial.println("[SYS] Self-test skipped by user input. Ready to play.");
+    } else {
+      displayMgr.updateSelfTest(currentMs);
+    }
+    delay(1);
+    return;
+  }
+
   // If a first-player roll animation is running, process its frame
   if (displayMgr.getScreenMode() == SCREEN_ROLL_ANIMATION) {
     displayMgr.updateAnimation(currentMs);

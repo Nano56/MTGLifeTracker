@@ -11,7 +11,22 @@ enum ScreenMode {
     SCREEN_GAME,
     SCREEN_EVENT_LOG,
     SCREEN_ROLL_ANIMATION,
-    SCREEN_PLAYER_SELECT
+    SCREEN_PLAYER_SELECT,
+    SCREEN_SELF_TEST
+};
+
+enum SelfTestStep {
+    TEST_STEP_NONE = 0,
+    TEST_STEP_SPLASH,          // 1. Splash screen & hardware color palette check
+    TEST_STEP_4P_LAYOUT,       // 2. 4-Player layout & 180° tabletop mirroring check
+    TEST_STEP_COUNTERS,        // 3. Real-time counter animations (Life, CMDR, Poison, Tax)
+    TEST_STEP_LETHAL,          // 4. Lethal condition alerts (Poison & CMDR deaths)
+    TEST_STEP_EVENT_LOG,       // 5. Match Event Log screen inspection
+    TEST_STEP_3P_LAYOUT,       // 6. 3-Player layout (1 top wide, 2 bottom quads)
+    TEST_STEP_2P_LAYOUT,       // 7. 2-Player layout (two dynamic wide halves)
+    TEST_STEP_PLAYER_SELECT,   // 8. Player Count Setup menu demonstration
+    TEST_STEP_ROLL_ANIMATION,  // 9. First-Player Roll roulette animation & banner
+    TEST_STEP_DONE             // 10. Self-test complete, ready to play
 };
 
 class DisplayManager {
@@ -45,6 +60,13 @@ public:
     void confirmPlayerSelect(uint32_t currentMs = 0);
     uint8_t getSelectedPlayerCount() const;
 
+    // Startup Hardware Self-Test / Demo Sequence
+    void startSelfTest(uint32_t currentMs = 0);
+    bool updateSelfTest(uint32_t currentMs);
+    void skipSelfTest(uint32_t currentMs = 0);
+    bool isSelfTestRunning() const;
+    SelfTestStep getSelfTestStep() const;
+
     // Check current screen mode
     ScreenMode getScreenMode() const;
 
@@ -64,6 +86,12 @@ private:
     ScreenMode currentScreen;
     uint8_t menuPlayerCount;
     bool lastRenderedDead[NUM_PLAYERS];
+
+    // Startup Self-Test state
+    SelfTestStep selfTestStep;
+    uint32_t selfTestStepStartTime;
+    void runSelfTestStep(SelfTestStep step, uint32_t currentMs);
+    void drawSelfTestSplash();
 
     // Roll animation state
     uint8_t rollWinner;

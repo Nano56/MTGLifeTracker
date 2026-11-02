@@ -24,10 +24,37 @@ int main() {
     GameState state(log);
     DisplayManager display(tft, state, log);
 
-    // 1. Hardware Initialization & Static Layout
+    // 1. Startup Self-Test Execution & Completion
     display.begin();
+#if ENABLE_STARTUP_SELF_TEST
+    TEST_ASSERT(display.isSelfTestRunning());
+    TEST_ASSERT(display.getScreenMode() == SCREEN_SELF_TEST);
+    TEST_ASSERT(display.getSelfTestStep() == TEST_STEP_SPLASH);
+    printf("  [PASS] DisplayManager entered Startup Self-Test sequence\n");
+
+    // Advance self-test step-by-step through all visual demonstrations
+    uint32_t simTime = 0;
+    while (display.isSelfTestRunning() && simTime < 30000) {
+        simTime += 200;
+        display.updateSelfTest(simTime);
+    }
+    TEST_ASSERT(!display.isSelfTestRunning());
+    TEST_ASSERT(display.getScreenMode() == SCREEN_GAME);
+    TEST_ASSERT(state.getPlayerCount() == DEFAULT_PLAYER_COUNT);
+    TEST_ASSERT(state.getPlayer(0).life == STARTING_LIFE);
+    printf("  [PASS] Startup Self-Test completed all steps and restored clean game screen\n");
+
+    // Test instant skip functionality
+    display.startSelfTest(simTime);
+    TEST_ASSERT(display.isSelfTestRunning());
+    display.skipSelfTest(simTime + 50);
+    TEST_ASSERT(!display.isSelfTestRunning());
+    TEST_ASSERT(display.getScreenMode() == SCREEN_GAME);
+    printf("  [PASS] Startup Self-Test skip abort confirmed\n");
+#else
     TEST_ASSERT(display.getScreenMode() == SCREEN_GAME);
     printf("  [PASS] DisplayManager initialized in SCREEN_GAME mode\n");
+#endif
 
     // 2. Render Quadrants
     for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
@@ -56,7 +83,7 @@ int main() {
     display.startRollAnimation(2, 3000);
     TEST_ASSERT(display.getScreenMode() == SCREEN_ROLL_ANIMATION);
 
-    uint32_t simTime = 3050;
+    simTime = 3050;
     bool animRunning = true;
     while (animRunning && simTime < 10000) {
         animRunning = display.updateAnimation(simTime);

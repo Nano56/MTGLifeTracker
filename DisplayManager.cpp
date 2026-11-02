@@ -6,6 +6,7 @@ DisplayManager::DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, Ev
     : tft(tftRef), state(stateRef), log(logRef), quadCanvas(QUAD_WIDTH, QUAD_HEIGHT),
       halfCanvas(SCREEN_WIDTH, QUAD_HEIGHT),
       currentScreen(SCREEN_GAME), menuPlayerCount(DEFAULT_PLAYER_COUNT),
+      selfTestStep(TEST_STEP_NONE), selfTestStepStartTime(0),
       rollWinner(0), animStartTime(0), lastAnimTick(0),
       animCurrentHighlight(0), animDelay(50), animSettled(false) {
     for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
@@ -16,7 +17,11 @@ DisplayManager::DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, Ev
 void DisplayManager::begin() {
     tft.begin();
     tft.setRotation(1); // Landscape 320 x 240
+#if ENABLE_STARTUP_SELF_TEST
+    startSelfTest(0);
+#else
     returnToGameScreen();
+#endif
 }
 
 void DisplayManager::returnToGameScreen() {
@@ -694,6 +699,179 @@ bool DisplayManager::updateAnimation(uint32_t currentMs) {
         if (elapsed > 4000) {
             returnToGameScreen();
             return false;
+        }
+    }
+    return true;
+}
+
+void DisplayManager::startSelfTest(uint32_t currentMs) {
+    currentScreen = SCREEN_SELF_TEST;
+    selfTestStep = TEST_STEP_SPLASH;
+    selfTestStepStartTime = currentMs;
+    runSelfTestStep(TEST_STEP_SPLASH, currentMs);
+}
+
+void DisplayManager::skipSelfTest(uint32_t currentMs) {
+    selfTestStep = TEST_STEP_NONE;
+    state.setPlayerCount(DEFAULT_PLAYER_COUNT, currentMs);
+    returnToGameScreen();
+}
+
+bool DisplayManager::isSelfTestRunning() const {
+    return (currentScreen == SCREEN_SELF_TEST && selfTestStep != TEST_STEP_NONE);
+}
+
+SelfTestStep DisplayManager::getSelfTestStep() const {
+    return selfTestStep;
+}
+
+void DisplayManager::drawSelfTestSplash() {
+    tft.fillScreen(COLOR_BLACK);
+
+    // Title Box
+    tft.fillRect(0, 0, SCREEN_WIDTH, 36, COLOR_DARKGREY);
+    tft.drawFastHLine(0, 36, SCREEN_WIDTH, COLOR_WHITE);
+    tft.setTextColor(COLOR_WHITE);
+    tft.setTextSize(2);
+    tft.setCursor(30, 10);
+    tft.print("HARDWARE SELF-TEST");
+
+    // Color Palette test bars
+    int16_t boxW = 60, boxH = 32, startY = 52;
+    tft.fillRoundRect(15,  startY, boxW, boxH, 4, COLOR_P1);
+    tft.fillRoundRect(90,  startY, boxW, boxH, 4, COLOR_P2);
+    tft.fillRoundRect(165, startY, boxW, boxH, 4, COLOR_P3);
+    tft.fillRoundRect(240, startY, boxW, boxH, 4, COLOR_P4);
+
+    tft.setTextColor(COLOR_BLACK);
+    tft.setTextSize(1);
+    tft.setCursor(26, startY + 12);  tft.print("P1 RED");
+    tft.setCursor(98, startY + 12);  tft.print("P2 CYAN");
+    tft.setCursor(174, startY + 12); tft.print("P3 GRN");
+    tft.setCursor(248, startY + 12); tft.print("P4 GOLD");
+
+    // Test sequence description
+    tft.setTextColor(COLOR_WHITE);
+    tft.setTextSize(1);
+    tft.setCursor(20, 100);
+    tft.print("Testing Peripherals, Layouts & Game Logic:");
+    tft.setTextColor(COLOR_LIGHTGREY);
+    tft.setCursor(30, 118);
+    tft.print("- 4P / 3P / 2P Dynamic Screen Layouts");
+    tft.setCursor(30, 134);
+    tft.print("- 180-deg Tabletop Mirroring (P1/P2)");
+    tft.setCursor(30, 150);
+    tft.print("- Real-time Combat & Commander Damage Sync");
+    tft.setCursor(30, 166);
+    tft.print("- Poison Counters & Commander Tax Stepping");
+    tft.setCursor(30, 182);
+    tft.print("- Lethal Checks, First Player Roll & Log");
+
+    // Footer
+    tft.drawFastHLine(0, 208, SCREEN_WIDTH, COLOR_DARKGREY);
+    tft.setTextColor(COLOR_WHITE);
+    tft.setTextSize(1);
+    tft.setCursor(35, 218);
+    tft.print("[ Turn or click any knob to skip ]");
+}
+
+void DisplayManager::runSelfTestStep(SelfTestStep step, uint32_t currentMs) {
+    switch (step) {
+        case TEST_STEP_SPLASH:
+            drawSelfTestSplash();
+            break;
+
+        case TEST_STEP_4P_LAYOUT:
+            state.setPlayerCount(4, currentMs);
+            returnToGameScreen();
+            currentScreen = SCREEN_SELF_TEST;
+            break;
+
+        case TEST_STEP_COUNTERS:
+            // P1 Life adjustment: -5
+            state.applyDelta(0, -5, currentMs);
+            // P2 takes 5 commander damage from P1
+            state.cycleMode(1, currentMs);
+            state.applyDelta(1, 5, currentMs);
+            // P3 takes 3 poison
+            state.cycleMode(2, currentMs);
+            state.cycleMode(2, currentMs);
+            state.cycleMode(2, currentMs);
+            state.cycleMode(2, currentMs);
+            state.applyDelta(2, 3, currentMs);
+            // P4 increments Commander Tax
+            state.cycleMode(3, currentMs);
+            state.cycleMode(3, currentMs);
+            state.cycleMode(3, currentMs);
+            state.cycleMode(3, currentMs);
+            state.cycleMode(3, currentMs);
+            state.applyDelta(3, 1, currentMs);
+            updateDirtyQuadrants();
+            break;
+
+        case TEST_STEP_LETHAL:
+            // P3 reaches 10 poison -> LETHAL
+            state.applyDelta(2, 7, currentMs);
+            // P2 takes 21 commander damage from P1 -> LETHAL
+            state.applyDelta(1, 16, currentMs);
+            updateDirtyQuadrants();
+            break;
+
+        case TEST_STEP_EVENT_LOG:
+            drawEventLog();
+            currentScreen = SCREEN_SELF_TEST;
+            break;
+
+        case TEST_STEP_3P_LAYOUT:
+            state.setPlayerCount(3, currentMs);
+            returnToGameScreen();
+            currentScreen = SCREEN_SELF_TEST;
+            break;
+
+        case TEST_STEP_2P_LAYOUT:
+            state.setPlayerCount(2, currentMs);
+            returnToGameScreen();
+            currentScreen = SCREEN_SELF_TEST;
+            break;
+
+        case TEST_STEP_PLAYER_SELECT:
+            openPlayerSelectScreen();
+            currentScreen = SCREEN_SELF_TEST;
+            break;
+
+        case TEST_STEP_ROLL_ANIMATION:
+            state.setPlayerCount(4, currentMs);
+            returnToGameScreen();
+            startRollAnimation(0, currentMs);
+            currentScreen = SCREEN_SELF_TEST;
+            break;
+
+        case TEST_STEP_DONE:
+        default:
+            skipSelfTest(currentMs);
+            break;
+    }
+}
+
+bool DisplayManager::updateSelfTest(uint32_t currentMs) {
+    if (!isSelfTestRunning()) return false;
+
+    // In roll animation step, update animation frames
+    if (selfTestStep == TEST_STEP_ROLL_ANIMATION) {
+        updateAnimation(currentMs);
+        currentScreen = SCREEN_SELF_TEST;
+    }
+
+    uint32_t stepDuration = (selfTestStep == TEST_STEP_ROLL_ANIMATION) ? 4200 : SELF_TEST_STEP_MS;
+    if (currentMs - selfTestStepStartTime >= stepDuration) {
+        selfTestStep = (SelfTestStep)((int)selfTestStep + 1);
+        selfTestStepStartTime = currentMs;
+
+        if (selfTestStep >= TEST_STEP_DONE) {
+            skipSelfTest(currentMs);
+            return false;
+        } else {
+            runSelfTestStep(selfTestStep, currentMs);
         }
     }
     return true;
