@@ -6,8 +6,9 @@
     {
       "type": "wokwi-ili9341",
       "id": "lcd",
-      "top": 30,
-      "left": 220,
+      "top": 60,
+      "left": 190,
+      "rotate": 90,
       "attrs": {}
     },
     {
@@ -57,14 +58,14 @@
     [ "esp:TX0", "$serialMonitor:RX", "", [] ],
     [ "esp:RX0", "$serialMonitor:TX", "", [] ],
 
-    [ "lcd:VCC", "esp:VIN", "red", [ "v30", "h-70", "v50" ] ],
-    [ "lcd:GND", "esp:GND.2", "black", [ "v25", "h-65", "v55" ] ],
+    [ "lcd:VCC", "esp:VIN", "red", [] ],
+    [ "lcd:GND", "esp:GND.2", "black", [] ],
 
-    [ "lcd:D/C", "esp:D22", "gray", [ "v20", "h120", "v40" ] ],
-    [ "lcd:CS", "esp:D21", "purple", [ "v25", "h110", "v55" ] ],
-    [ "lcd:MOSI", "esp:D23", "green", [ "v15", "h100", "v25" ] ],
-    [ "lcd:SCK", "esp:D18", "gold", [ "v30", "h90", "v75" ] ],
-    [ "lcd:MISO", "esp:D19", "blue", [ "v35", "h80", "v65" ] ],
+    [ "lcd:D/C", "esp:D22", "gray", [] ],
+    [ "lcd:CS", "esp:D21", "purple", [] ],
+    [ "lcd:MOSI", "esp:D23", "green", [] ],
+    [ "lcd:SCK", "esp:D18", "gold", [] ],
+    [ "lcd:MISO", "esp:D19", "blue", [] ],
 
     [ "p1_knob:CLK", "esp:D25", "green", [ "h20", "v420" ] ],
     [ "p1_knob:DT", "esp:D26", "blue", [ "h25", "v420" ] ],
