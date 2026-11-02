@@ -1,0 +1,23 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Firmware (PlatformIO)",
+            "type": "shell",
+            "command": ".\\.venv\\Scripts\\pio.exe run",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Run Unit & Scenario Tests",
+            "type": "shell",
+            "command": "powershell -ExecutionPolicy Bypass -File scripts/run_tests.ps1",
+            "group": "test",
+            "problemMatcher": []
+        }
+    ]
+}
+
