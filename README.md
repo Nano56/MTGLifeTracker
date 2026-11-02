@@ -10,7 +10,8 @@ Commander games present unique tabletop challenges:
 
 This project builds an intuitive, easy-to-read, tabletop hardware device for tracking game state without relying on phone apps that drain phone batteries or go to sleep.
 
-For detailed hardware choices, GPIO pin budgets, and design rationale, see [docs/HARDWARE_SPEC.md](docs/HARDWARE_SPEC.md).
+- For development, build, and test instructions, see [development_workflow.md](development_workflow.md).
+- For detailed hardware choices, GPIO pin budgets, and design rationale, see [docs/HARDWARE_SPEC.md](docs/HARDWARE_SPEC.md).
 
 ---
 
@@ -44,6 +45,7 @@ MTGLifeTracker/
 ├── InputDecoder.h / .cpp       # KY-040 rotary decoder & button debouncer
 ├── AppController.h / .cpp      # Normalized HID action dispatcher
 ├── DisplayManager.h / .cpp     # 320x240 ILI9341 4-quadrant UI engine
+├── development_workflow.md     # Development, build, simulation & testing guide
 └── to_fix.md                   # Project bug tracker & resolved remediation audit
 ```
 
@@ -52,7 +54,7 @@ MTGLifeTracker/
 ## Validation & Testing
 
 ### 1. Run Native Automated Tests
-Execute all 242 unit, display, and scenario tests locally without opening any emulator:
+Execute all 276 unit, display, and scenario tests locally without opening any emulator:
 ```powershell
 .\scripts\run_tests.ps1
 ```
@@ -70,7 +72,10 @@ Open `diagram.json` in VS Code / Antigravity IDE with the Wokwi extension and cl
 ---
 
 ## Features Implemented
-- [x] 4-player quadrant display on 320×240 ILI9341 color TFT.
+- [x] Visible Hardware Startup Self-Test / Demo: runs on boot demonstrating TFT color palette, 4P/3P/2P layouts, 180° tabletop mirroring, counter modifications, lethal elimination banners, event log, and roll animation (instantly skippable by turning or clicking any knob/button).
+- [x] Configurable 2–4 player layouts (1v1 dynamic halves, 3-player 1-top/2-bottom, and 4-quadrant table).
+- [x] Dedicated Player Count Setup menu: hold Table Button (3s), turn knob to choose 2/3/4, click to confirm.
+- [x] Tabletop mirroring: top players (P1 in 2P/3P, P1 & P2 in 4P) are automatically rotated 180° for players seated across the table.
 - [x] Starting life total: 40 per player.
 - [x] Commander Damage per opponent: tracked independently for each opponent, reduces life in tandem, lethal at $\ge 21$ from any single commander (CR 903.10a / 704.6c).
 - [x] Dual-counter view: Large Life total alongside 3-row opponent Commander Damage breakdown.
