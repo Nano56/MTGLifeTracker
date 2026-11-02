@@ -75,9 +75,14 @@ public:
     // Name of active mode: "LIFE", "CMDR", "POISON", "TAX"
     static const char* getModeName(CounterMode mode);
 
+    // Dynamic Player Count (2, 3, or 4)
+    uint8_t getPlayerCount() const;
+    void setPlayerCount(uint8_t count, uint32_t currentMs = 0);
+
     EventLog& log;
 
 private:
+    uint8_t playerCount;
     PlayerState players[NUM_PLAYERS];
 
     uint8_t getFirstOpponent(uint8_t playerIdx) const;

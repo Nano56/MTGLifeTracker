@@ -43,7 +43,12 @@ void AppController::tick(uint32_t currentMs) {
 }
 
 uint8_t AppController::rollStartingPlayer(uint32_t currentMs, uint32_t seed) {
-    uint8_t winner = (seed + currentMs) % NUM_PLAYERS;
+    uint8_t count = state.getPlayerCount();
+    uint8_t winner = (seed + currentMs) % (count > 0 ? count : NUM_PLAYERS);
     state.recordFirstPlayer(winner, currentMs);
     return winner;
+}
+
+void AppController::setPlayerCount(uint8_t count, uint32_t currentMs) {
+    state.setPlayerCount(count, currentMs);
 }

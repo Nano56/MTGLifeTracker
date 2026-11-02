@@ -57,7 +57,8 @@ void printBoard(const GameState& state, const EventLog& log, uint32_t currentMs)
 
     printf("%s====================================================================================%s\n", ANSI_GREY, ANSI_RESET);
     printf("                  %sMTG COMMANDER LIFE TRACKER - DESKTOP SIMULATOR%s\n", ANSI_BOLD, ANSI_RESET);
-    printf("                          Uptime: %02u:%02u (MTG EDH Rules Engine)\n", (unsigned)(currentMs / 60000), (unsigned)((currentMs / 1000) % 60));
+    printf("            Uptime: %02u:%02u (MTG EDH Rules Engine) | Mode: %d-Players (Press 'M' to cycle)\n",
+           (unsigned)(currentMs / 60000), (unsigned)((currentMs / 1000) % 60), state.getPlayerCount());
     printf("%s====================================================================================%s\n", ANSI_GREY, ANSI_RESET);
 
     const PlayerState& p1 = state.getPlayer(0);
@@ -237,6 +238,15 @@ int main(int argc, char* argv[]) {
                 case '@': controller.dispatchAction(1, ACT_RETURN_TO_LIFE, simulatedMs); break;
                 case '#': controller.dispatchAction(2, ACT_RETURN_TO_LIFE, simulatedMs); break;
                 case '$': controller.dispatchAction(3, ACT_RETURN_TO_LIFE, simulatedMs); break;
+
+                // Cycle player count (4 -> 2 -> 3 -> 4)
+                case 'M':
+                case 'm': {
+                    uint8_t cur = state.getPlayerCount();
+                    uint8_t next = (cur == 4) ? 2 : (cur + 1);
+                    controller.setPlayerCount(next, simulatedMs);
+                    break;
+                }
 
                 // Roll first player
                 case ' ':

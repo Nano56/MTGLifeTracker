@@ -43,6 +43,9 @@
 // GAME RULES CONSTANTS (MTG Commander EDH)
 // ==========================================
 #define NUM_PLAYERS          4
+#define DEFAULT_PLAYER_COUNT 4
+#define MIN_PLAYERS          2
+#define MAX_PLAYERS          4
 #define STARTING_LIFE        40
 #define LETHAL_CMDR_DAMAGE   21
 #define MAX_CMDR_DAMAGE      99
@@ -59,6 +62,7 @@
 #define DEBOUNCE_DELAY_MS           35
 #define LONG_PRESS_MS               1500
 #define TABLE_RESET_LONG_PRESS_MS   1500
+#define TABLE_MENU_LONG_PRESS_MS    3000
 #define PLAYER_RESET_LONG_PRESS_MS  3000
 #define DOUBLE_CLICK_WINDOW_MS      350
 #define AUTO_RETURN_LIFE_MS         0 // Set to 0 to disable auto-return; modes stay until explicitly cycled

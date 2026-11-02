@@ -9,7 +9,8 @@ enum ButtonEvent {
     BTN_EVENT_NONE = 0,
     BTN_EVENT_SHORT_CLICK,
     BTN_EVENT_LONG_PRESS,
-    BTN_EVENT_DOUBLE_CLICK
+    BTN_EVENT_DOUBLE_CLICK,
+    BTN_EVENT_VERY_LONG_PRESS
 };
 
 class RotaryDecoder {
@@ -35,6 +36,9 @@ public:
     // Configure long press duration threshold (default: LONG_PRESS_MS)
     void setLongPressMs(uint32_t ms);
 
+    // Configure very long press duration threshold (0 = disabled)
+    void setVeryLongPressMs(uint32_t ms);
+
     // Update with current pin level (true if pressed / LOW on active-low pin) and timestamp.
     // Returns ButtonEvent if an event triggered this tick.
     ButtonEvent update(bool isPressed, uint32_t currentMs);
@@ -53,7 +57,9 @@ private:
     uint32_t lastDebounceTime;
     uint32_t pressStartTime;
     uint32_t longPressThresholdMs;
+    uint32_t veryLongPressThresholdMs;
     bool longPressEmitted;
+    bool veryLongPressEmitted;
 
     // Double-click tracking
     uint32_t lastClickTime;

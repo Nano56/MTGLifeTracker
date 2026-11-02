@@ -1,22 +1,33 @@
 #include "GameState.h"
 #include <string.h>
 
-GameState::GameState(EventLog& logRef) : log(logRef) {
+GameState::GameState(EventLog& logRef) : log(logRef), playerCount(DEFAULT_PLAYER_COUNT) {
     resetAll(0);
 }
 
 uint8_t GameState::getFirstOpponent(uint8_t playerIdx) const {
-    for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+    for (uint8_t i = 0; i < playerCount; i++) {
         if (i != playerIdx) return i;
     }
     return 0;
 }
 
 uint8_t GameState::getNextOpponent(uint8_t playerIdx, uint8_t currentSource) const {
-    for (uint8_t i = currentSource + 1; i < NUM_PLAYERS; i++) {
+    for (uint8_t i = currentSource + 1; i < playerCount; i++) {
         if (i != playerIdx) return i;
     }
     return 255; // Sentinel: no more opponents
+}
+
+uint8_t GameState::getPlayerCount() const {
+    return playerCount;
+}
+
+void GameState::setPlayerCount(uint8_t count, uint32_t currentMs) {
+    if (count < MIN_PLAYERS) count = MIN_PLAYERS;
+    if (count > MAX_PLAYERS) count = MAX_PLAYERS;
+    playerCount = count;
+    resetAll(currentMs);
 }
 
 void GameState::resetAll(uint32_t currentMs) {
@@ -229,7 +240,7 @@ bool GameState::updateLethal(uint8_t playerIdx) {
     if (p.poison >= LETHAL_POISON) {
         p.deadReasonMask |= DEAD_REASON_POISON;
     }
-    for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+    for (uint8_t i = 0; i < playerCount; i++) {
         if (i != playerIdx && p.cmdrDmg[i] >= LETHAL_CMDR_DAMAGE) {
             p.deadReasonMask |= (DEAD_REASON_CMDR_P1 << i);
         }

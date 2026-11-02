@@ -186,6 +186,37 @@ int main() {
     TEST_ASSERT(log.getCount() == 1); // Only EVT_GAME_RESET in clean log!
     printf("  [PASS] Full game reset verified (all players at 40 life and clean log)\n");
 
+    // 11. 2-Player and 3-Player Configuration & Mode Cycling
+    state.setPlayerCount(2, 9500);
+    TEST_ASSERT(state.getPlayerCount() == 2);
+    // In 2P mode, P0 has only 1 opponent (P1). Cycle: LIFE -> CMDR(P1) -> POISON -> TAX -> LIFE
+    state.cycleMode(0, 9600); // CMDR P1
+    TEST_ASSERT(state.getPlayer(0).activeMode == MODE_CMDR);
+    TEST_ASSERT(state.getPlayer(0).cmdrSource == 1);
+    state.cycleMode(0, 9700); // Directly to POISON!
+    TEST_ASSERT(state.getPlayer(0).activeMode == MODE_POISON);
+    state.cycleMode(0, 9800); // TAX
+    TEST_ASSERT(state.getPlayer(0).activeMode == MODE_TAX);
+    state.cycleMode(0, 9900); // LIFE
+    TEST_ASSERT(state.getPlayer(0).activeMode == MODE_LIFE);
+    printf("  [PASS] 2-Player mode cycles exactly 1 opponent commander\n");
+
+    state.setPlayerCount(3, 10000);
+    TEST_ASSERT(state.getPlayerCount() == 3);
+    // In 3P mode, P0 has 2 opponents (P1 and P2).
+    state.cycleMode(0, 10100); // CMDR P1
+    TEST_ASSERT(state.getPlayer(0).activeMode == MODE_CMDR);
+    TEST_ASSERT(state.getPlayer(0).cmdrSource == 1);
+    state.cycleMode(0, 10200); // CMDR P2
+    TEST_ASSERT(state.getPlayer(0).activeMode == MODE_CMDR);
+    TEST_ASSERT(state.getPlayer(0).cmdrSource == 2);
+    state.cycleMode(0, 10300); // POISON
+    TEST_ASSERT(state.getPlayer(0).activeMode == MODE_POISON);
+    printf("  [PASS] 3-Player mode cycles exactly 2 opponent commanders\n");
+
+    state.setPlayerCount(4, 10400);
+    TEST_ASSERT(state.getPlayerCount() == 4);
+
     printf(">>> test_gamestate: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }

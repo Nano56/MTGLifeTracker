@@ -31,8 +31,11 @@ public:
     // Periodic tick to handle time-based rules
     void tick(uint32_t currentMs);
 
-    // Pick a starting player randomly (0..NUM_PLAYERS-1)
+    // Pick a starting player randomly among active players
     uint8_t rollStartingPlayer(uint32_t currentMs, uint32_t seed);
+
+    // Set player count (2..4)
+    void setPlayerCount(uint8_t count, uint32_t currentMs = 0);
 
     GameState& state;
     EventLog&  log;

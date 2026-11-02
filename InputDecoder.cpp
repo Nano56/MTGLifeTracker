@@ -64,12 +64,19 @@ void ButtonDebouncer::setLongPressMs(uint32_t ms) {
     longPressThresholdMs = ms;
 }
 
+void ButtonDebouncer::setVeryLongPressMs(uint32_t ms) {
+    veryLongPressThresholdMs = ms;
+}
+
 void ButtonDebouncer::reset() {
     state = STATE_RELEASED;
     lastRawLevel = false;
     lastDebounceTime = 0;
     pressStartTime = 0;
+    longPressThresholdMs = LONG_PRESS_MS;
+    veryLongPressThresholdMs = 0;
     longPressEmitted = false;
+    veryLongPressEmitted = false;
     lastClickTime = 0;
     waitingForSecondClick = false;
 }
@@ -92,6 +99,7 @@ ButtonEvent ButtonDebouncer::update(bool isPressed, uint32_t currentMs) {
             state = STATE_PRESSED;
             pressStartTime = currentMs;
             longPressEmitted = false;
+            veryLongPressEmitted = false;
         } else if (!isPressed && state == STATE_PRESSED) {
             state = STATE_RELEASED;
             if (!longPressEmitted) {
@@ -113,6 +121,14 @@ ButtonEvent ButtonDebouncer::update(bool isPressed, uint32_t currentMs) {
             longPressEmitted = true;
             waitingForSecondClick = false;
             return BTN_EVENT_LONG_PRESS;
+        }
+    }
+
+    // Check very long press while still held down (e.g. 3s hold)
+    if (state == STATE_PRESSED && longPressEmitted && !veryLongPressEmitted && veryLongPressThresholdMs > 0) {
+        if ((currentMs - pressStartTime) >= veryLongPressThresholdMs) {
+            veryLongPressEmitted = true;
+            return BTN_EVENT_VERY_LONG_PRESS;
         }
     }
 
