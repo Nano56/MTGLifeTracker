@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
@@ -51,9 +52,10 @@ void setup() {
     rotaryButtons[i].setLongPressMs(PLAYER_RESET_LONG_PRESS_MS);
   }
 
-  // Configure table reset/roll button (1500 ms hold for full table reset)
+  // Configure table reset/roll button (1500 ms hold for reset, 3000 ms hold for Player Count menu)
   pinMode(BTN_RESET, INPUT_PULLUP);
   tableButton.setLongPressMs(TABLE_RESET_LONG_PRESS_MS);
+  tableButton.setVeryLongPressMs(TABLE_MENU_LONG_PRESS_MS);
 
   // Seed random generator with analog noise on unconnected pin
   randomSeed(analogRead(36) + esp_random());
@@ -61,9 +63,20 @@ void setup() {
   // Initialize display and render starting 4-player layout
   displayMgr.begin();
 
-  Serial.printf("[SYS] Ready. 4 Players @ %d Life.\n", STARTING_LIFE);
+  Serial.printf("[SYS] Ready. %d Players @ %d Life.\n", gameState.getPlayerCount(), STARTING_LIFE);
   Serial.println("[SYS] Turn knob: +/- Counter | Click knob: Cycle Mode | Double-click: Return to Life");
-  Serial.println("[SYS] Hold knob (3s): Reset Player | Red Button: Click to Roll | Double-click: Event Log | Hold (1.5s): Reset Game\n");
+  Serial.println("[SYS] Hold knob (3s): Reset Player | Red Button: Click to Roll | Double-click: Event Log");
+  Serial.println("[SYS] Hold Red Button (1.5s): Reset Game | Hold Red Button (3s): Player Count Setup (2-4P)\n");
+}
+
+static uint8_t getPlayerIndexForKnob(uint8_t knobIdx, uint8_t playerCount) {
+  if (playerCount == 2) {
+    return (knobIdx < 2) ? 0 : 1;
+  } else if (playerCount == 3) {
+    if (knobIdx < 2) return 0;
+    return (knobIdx == 2) ? 1 : 2;
+  }
+  return knobIdx;
 }
 
 void loop() {
@@ -75,6 +88,8 @@ void loop() {
     return;
   }
 
+  uint8_t activePlayerCount = gameState.getPlayerCount();
+
   // -------------------------------------------------------------
   // 1. Process 4 Rotary Encoders (Rotation & Switch)
   // -------------------------------------------------------------
@@ -85,13 +100,20 @@ void loop() {
 
     int8_t delta = rotaryDecoders[i].update(clkLevel, dtLevel);
     if (delta != 0) {
+      if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
+        displayMgr.adjustPlayerSelect(delta > 0 ? 1 : -1);
+        continue;
+      }
+
       if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
         displayMgr.returnToGameScreen();
       }
 
+      uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
+
       // Dispatch abstract HID action to unified controller
       HIDAction act = (delta > 0) ? ACT_INCREMENT : ACT_DECREMENT;
-      controller.dispatchAction(i, act, currentMs);
+      controller.dispatchAction(targetP, act, currentMs);
 
       // Print live event to Serial
       GameEvent latestEvt;
@@ -107,39 +129,59 @@ void loop() {
     ButtonEvent swEvt = rotaryButtons[i].update(isSwPressed, currentMs);
 
     if (swEvt == BTN_EVENT_SHORT_CLICK) {
+      if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
+        displayMgr.confirmPlayerSelect(currentMs);
+        Serial.printf("[SYS] Confirmed %d Players\n", gameState.getPlayerCount());
+        continue;
+      }
+
       if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
         displayMgr.returnToGameScreen();
       }
-      controller.dispatchAction(i, ACT_CYCLE_MODE, currentMs);
-      const PlayerState& p = gameState.getPlayer(i);
+
+      uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
+      controller.dispatchAction(targetP, ACT_CYCLE_MODE, currentMs);
+      const PlayerState& p = gameState.getPlayer(targetP);
       if (p.activeMode == MODE_CMDR) {
-        Serial.printf("[SYS] P%d switched mode to CMDR (Source P%d)\n", i + 1, p.cmdrSource + 1);
+        Serial.printf("[SYS] P%d switched mode to CMDR (Source P%d)\n", targetP + 1, p.cmdrSource + 1);
       } else {
-        Serial.printf("[SYS] P%d switched mode to %s\n", i + 1, GameState::getModeName(p.activeMode));
+        Serial.printf("[SYS] P%d switched mode to %s\n", targetP + 1, GameState::getModeName(p.activeMode));
       }
     } else if (swEvt == BTN_EVENT_DOUBLE_CLICK) {
+      if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
+        displayMgr.confirmPlayerSelect(currentMs);
+        continue;
+      }
       if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
         displayMgr.returnToGameScreen();
       }
-      controller.dispatchAction(i, ACT_RETURN_TO_LIFE, currentMs);
-      Serial.printf("[SYS] P%d returned to LIFE mode\n", i + 1);
+      uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
+      controller.dispatchAction(targetP, ACT_RETURN_TO_LIFE, currentMs);
+      Serial.printf("[SYS] P%d returned to LIFE mode\n", targetP + 1);
     } else if (swEvt == BTN_EVENT_LONG_PRESS) {
+      if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
+        continue;
+      }
       if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
         displayMgr.returnToGameScreen();
       }
-      controller.dispatchAction(i, ACT_RESET_PLAYER, currentMs);
-      Serial.printf("[SYS] P%d reset to %d life\n", i + 1, STARTING_LIFE);
+      uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
+      controller.dispatchAction(targetP, ACT_RESET_PLAYER, currentMs);
+      Serial.printf("[SYS] P%d reset to %d life\n", targetP + 1, STARTING_LIFE);
     }
   }
 
   // -------------------------------------------------------------
-  // 2. Process Global Table Button (Reset / Roll First / Event Log)
+  // 2. Process Global Table Button (Reset / Roll First / Event Log / Player Select)
   // -------------------------------------------------------------
   bool isResetPressed = (digitalRead(BTN_RESET) == LOW);
   ButtonEvent rstEvt = tableButton.update(isResetPressed, currentMs);
 
   if (rstEvt == BTN_EVENT_SHORT_CLICK) {
-    if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
+    if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
+      displayMgr.confirmPlayerSelect(currentMs);
+      Serial.printf("[SYS] Confirmed %d Players\n", gameState.getPlayerCount());
+    } else if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
       // Exit event log view back to game screen
       displayMgr.returnToGameScreen();
     } else {
@@ -150,14 +192,23 @@ void loop() {
       Serial.printf("\n[SYS] *** First Player Roll: P%d Goes First! ***\n\n", winner + 1);
     }
   } else if (rstEvt == BTN_EVENT_DOUBLE_CLICK) {
-    // Double click toggles Event Log screen
-    displayMgr.toggleEventLogScreen();
-    Serial.println("[SYS] Toggled Match Event Log screen");
+    if (displayMgr.getScreenMode() != SCREEN_PLAYER_SELECT) {
+      // Double click toggles Event Log screen
+      displayMgr.toggleEventLogScreen();
+      Serial.println("[SYS] Toggled Match Event Log screen");
+    }
   } else if (rstEvt == BTN_EVENT_LONG_PRESS) {
-    // Full Table Game Reset via controller
-    controller.dispatchAction(0, ACT_RESET_GAME, currentMs);
-    displayMgr.returnToGameScreen();
-    Serial.printf("\n[SYS] === FULL GAME RESET: All players reset to %d Life ===\n\n", STARTING_LIFE);
+    if (displayMgr.getScreenMode() != SCREEN_PLAYER_SELECT) {
+      // Full Table Game Reset via controller (1.5s hold)
+      controller.dispatchAction(0, ACT_RESET_GAME, currentMs);
+      displayMgr.returnToGameScreen();
+      Serial.printf("\n[SYS] === FULL GAME RESET: All %d players reset to %d Life ===\n\n",
+                    gameState.getPlayerCount(), STARTING_LIFE);
+    }
+  } else if (rstEvt == BTN_EVENT_VERY_LONG_PRESS) {
+    // 3.0s hold enters Player Count Setup screen
+    displayMgr.openPlayerSelectScreen();
+    Serial.println("[SYS] Entered Player Count Setup menu (2, 3, or 4 Players)");
   }
 
   // -------------------------------------------------------------

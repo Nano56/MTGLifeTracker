@@ -3,9 +3,11 @@
 #include <string.h>
 
 DisplayManager::DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, EventLog& logRef)
-    : tft(tftRef), state(stateRef), log(logRef), currentScreen(SCREEN_GAME),
-      rollWinner(0), animStartTime(0), lastAnimTick(0), animCurrentHighlight(0),
-      animDelay(50), animSettled(false) {
+    : tft(tftRef), state(stateRef), log(logRef), quadCanvas(QUAD_WIDTH, QUAD_HEIGHT),
+      halfCanvas(SCREEN_WIDTH, QUAD_HEIGHT),
+      currentScreen(SCREEN_GAME), menuPlayerCount(DEFAULT_PLAYER_COUNT),
+      rollWinner(0), animStartTime(0), lastAnimTick(0),
+      animCurrentHighlight(0), animDelay(50), animSettled(false) {
     for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
         lastRenderedDead[i] = false;
     }
@@ -21,30 +23,68 @@ void DisplayManager::returnToGameScreen() {
     currentScreen = SCREEN_GAME;
     tft.fillScreen(COLOR_BLACK);
     drawStaticLayout();
-    for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+    uint8_t count = state.getPlayerCount();
+    for (uint8_t i = 0; i < count; i++) {
         lastRenderedDead[i] = state.getPlayer(i).isDead;
         renderQuadrant(i, true);
     }
 }
 
 void DisplayManager::drawStaticLayout() {
-    // Center divider lines
-    tft.drawFastVLine(QUAD_WIDTH - 1, 0, SCREEN_HEIGHT, COLOR_DIVIDER);
-    tft.drawFastVLine(QUAD_WIDTH, 0, SCREEN_HEIGHT, COLOR_DIVIDER);
+    uint8_t count = state.getPlayerCount();
 
+    // Center horizontal divider (present in 2, 3, and 4 player modes)
     tft.drawFastHLine(0, QUAD_HEIGHT - 1, SCREEN_WIDTH, COLOR_DIVIDER);
     tft.drawFastHLine(0, QUAD_HEIGHT, SCREEN_WIDTH, COLOR_DIVIDER);
+
+    // Center vertical divider
+    if (count == 4) {
+        // Full vertical divider across entire screen
+        tft.drawFastVLine(QUAD_WIDTH - 1, 0, SCREEN_HEIGHT, COLOR_DIVIDER);
+        tft.drawFastVLine(QUAD_WIDTH, 0, SCREEN_HEIGHT, COLOR_DIVIDER);
+    } else if (count == 3) {
+        // Vertical divider only for the bottom half (between P2 and P3)
+        tft.drawFastVLine(QUAD_WIDTH - 1, QUAD_HEIGHT, QUAD_HEIGHT, COLOR_DIVIDER);
+        tft.drawFastVLine(QUAD_WIDTH, QUAD_HEIGHT, QUAD_HEIGHT, COLOR_DIVIDER);
+    }
+    // 2-player mode has no vertical divider
 }
 
 void DisplayManager::getQuadrantBounds(uint8_t playerIdx, int16_t& qx, int16_t& qy, int16_t& qw, int16_t& qh) {
-    qw = QUAD_WIDTH;
-    qh = QUAD_HEIGHT;
-    switch (playerIdx) {
-        case 0: qx = 0;          qy = 0;           break; // P1: Top-Left
-        case 1: qx = QUAD_WIDTH; qy = 0;           break; // P2: Top-Right
-        case 2: qx = 0;          qy = QUAD_HEIGHT; break; // P3: Bottom-Left
-        case 3: qx = QUAD_WIDTH; qy = QUAD_HEIGHT; break; // P4: Bottom-Right
-        default: qx = 0; qy = 0; break;
+    uint8_t count = state.getPlayerCount();
+    if (count == 2) {
+        qw = SCREEN_WIDTH;
+        qh = QUAD_HEIGHT;
+        switch (playerIdx) {
+            case 0: qx = 0; qy = 0;           break; // P1: Top Half (320x120), flipped
+            case 1: qx = 0; qy = QUAD_HEIGHT; break; // P2: Bottom Half (320x120), normal
+            default: qx = 0; qy = 0; qw = 0; qh = 0; break;
+        }
+    } else if (count == 3) {
+        switch (playerIdx) {
+            case 0: // P1: Top Half full-width (320x120), flipped
+                qx = 0; qy = 0; qw = SCREEN_WIDTH; qh = QUAD_HEIGHT;
+                break;
+            case 1: // P2: Bottom-Left (160x120), normal
+                qx = 0; qy = QUAD_HEIGHT; qw = QUAD_WIDTH; qh = QUAD_HEIGHT;
+                break;
+            case 2: // P3: Bottom-Right (160x120), normal
+                qx = QUAD_WIDTH; qy = QUAD_HEIGHT; qw = QUAD_WIDTH; qh = QUAD_HEIGHT;
+                break;
+            default:
+                qx = 0; qy = 0; qw = 0; qh = 0;
+                break;
+        }
+    } else { // 4 Players
+        qw = QUAD_WIDTH;
+        qh = QUAD_HEIGHT;
+        switch (playerIdx) {
+            case 0: qx = 0;          qy = 0;           break; // P1: Top-Left
+            case 1: qx = QUAD_WIDTH; qy = 0;           break; // P2: Top-Right
+            case 2: qx = 0;          qy = QUAD_HEIGHT; break; // P3: Bottom-Left
+            case 3: qx = QUAD_WIDTH; qy = QUAD_HEIGHT; break; // P4: Bottom-Right
+            default: qx = 0; qy = 0; break;
+        }
     }
 }
 
@@ -64,49 +104,56 @@ uint16_t DisplayManager::getQuadrantBg(uint8_t playerIdx) const {
 }
 
 void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
-    if (playerIdx >= NUM_PLAYERS) return;
+    (void)forceFullRedraw;
+    if (playerIdx >= state.getPlayerCount()) return;
 
     int16_t qx, qy, qw, qh;
     getQuadrantBounds(playerIdx, qx, qy, qw, qh);
+
+    // If this player is allocated a full-width half (320x120), delegate to renderHalf
+    if (qw == SCREEN_WIDTH) {
+        renderHalf(playerIdx);
+        return;
+    }
+
     const PlayerState& p = state.getPlayer(playerIdx);
     uint16_t pColor = getPlayerColor(playerIdx);
     uint16_t bgColor = getQuadrantBg(playerIdx);
+    uint8_t count = state.getPlayerCount();
 
-    if (forceFullRedraw) {
-        // Clear quadrant interior (leaving 1px border for divider)
-        tft.fillRect(qx + 1, qy + 1, qw - 2, qh - 2, bgColor);
-    }
+    // P1 and P2 (top half of table in 4P mode) or P1 are mirrored/rotated 180 degrees
+    bool isFlipped = (playerIdx == 0) || (count == 4 && playerIdx == 1);
+    quadCanvas.setRotation(isFlipped ? 2 : 0);
+
+    // Clear quadrant off-screen canvas to background
+    quadCanvas.fillScreen(bgColor);
 
     // 1. Header Bar: Player Badge (Left) + Secondary Poison/Tax (Right)
-    tft.fillRect(qx + 4, qy + 4, qw - 8, 16, bgColor);
+    quadCanvas.fillRect(4, 4, qw - 8, 16, bgColor);
 
     // Player Badge (filled rounded rectangle)
-    tft.fillRoundRect(qx + 6, qy + 4, 28, 14, 3, pColor);
-    tft.setTextColor(COLOR_BLACK);
-    tft.setTextSize(1);
-    tft.setCursor(qx + 13, qy + 7);
-    tft.printf("P%d", playerIdx + 1);
+    quadCanvas.fillRoundRect(6, 4, 28, 14, 3, pColor);
+    quadCanvas.setTextColor(COLOR_BLACK);
+    quadCanvas.setTextSize(1);
+    quadCanvas.setCursor(13, 7);
+    quadCanvas.printf("P%d", playerIdx + 1);
 
     // Secondary Stats in Header (Poison & Tax)
-    tft.setTextColor(COLOR_LIGHTGREY, bgColor);
-    tft.setTextSize(1);
-    tft.setCursor(qx + 45, qy + 7);
-    tft.printf("PSN:%d  TAX:%d", p.poison, p.tax);
+    quadCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
+    quadCanvas.setTextSize(1);
+    quadCanvas.setCursor(45, 7);
+    quadCanvas.printf("PSN:%d  TAX:%d", p.poison, p.tax);
 
     // Vertical column divider between Life and Commander Damage
-    tft.drawFastVLine(qx + 82, qy + 22, 66, COLOR_DIVIDER);
+    quadCanvas.drawFastVLine(82, 22, 66, COLOR_DIVIDER);
 
-    // 2. Dual Counter Display (Life on Left, 3 Opponent Commander Damages on Right)
-    // Clear left and right counter areas
-    tft.fillRect(qx + 4, qy + 22, 76, 66, bgColor);
-    tft.fillRect(qx + 84, qy + 22, 72, 66, bgColor);
-
+    // 2. Dual Counter Display (Life on Left, Opponent Commander Damages on Right)
     // --- LEFT COLUMN: LIFE ---
     bool isLifeActive = (p.activeMode == MODE_LIFE);
-    tft.setTextSize(1);
-    tft.setTextColor(isLifeActive ? pColor : COLOR_LIGHTGREY, bgColor);
-    tft.setCursor(qx + 10, qy + 24);
-    tft.printf("%sLIFE", isLifeActive ? "> " : "  ");
+    quadCanvas.setTextSize(1);
+    quadCanvas.setTextColor(isLifeActive ? pColor : COLOR_LIGHTGREY, bgColor);
+    quadCanvas.setCursor(10, 24);
+    quadCanvas.printf("%sLIFE", isLifeActive ? "> " : "  ");
 
     // Big Life Number (Text Size 4, or 3 for 4+ digits)
     char lifeStr[12];
@@ -115,72 +162,72 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
     uint8_t lifeTextSize = (lifeLen > 3) ? 3 : 4;
     uint8_t lifeCharW = (lifeTextSize == 4) ? 24 : 18;
     int16_t lifeTotalW = lifeLen * lifeCharW;
-    int16_t lifeX = qx + 4 + (76 - lifeTotalW) / 2;
-    int16_t lifeY = qy + ((lifeTextSize == 4) ? 42 : 46);
+    int16_t lifeX = 4 + (76 - lifeTotalW) / 2;
+    int16_t lifeY = (lifeTextSize == 4) ? 42 : 46;
 
-    tft.setTextColor(isLifeActive ? COLOR_WHITE : pColor, bgColor);
-    tft.setTextSize(lifeTextSize);
-    tft.setCursor(lifeX, lifeY);
-    tft.print(lifeStr);
+    quadCanvas.setTextColor(isLifeActive ? COLOR_WHITE : pColor, bgColor);
+    quadCanvas.setTextSize(lifeTextSize);
+    quadCanvas.setCursor(lifeX, lifeY);
+    quadCanvas.print(lifeStr);
 
-    // --- RIGHT COLUMN: 3 OPPONENT COMMANDER DAMAGES ---
+    // --- RIGHT COLUMN: ACTIVE OPPONENT COMMANDER DAMAGES ---
     bool isCmdrActive = (p.activeMode == MODE_CMDR);
-    tft.setTextSize(1);
-    tft.setTextColor(isCmdrActive ? pColor : COLOR_LIGHTGREY, bgColor);
-    tft.setCursor(qx + 88, qy + 24);
-    tft.print("CMDR DMG");
+    quadCanvas.setTextSize(1);
+    quadCanvas.setTextColor(isCmdrActive ? pColor : COLOR_LIGHTGREY, bgColor);
+    quadCanvas.setCursor(88, 24);
+    quadCanvas.print("CMDR DMG");
 
     uint8_t rowIdx = 0;
-    for (uint8_t opp = 0; opp < NUM_PLAYERS; opp++) {
+    for (uint8_t opp = 0; opp < count; opp++) {
         if (opp == playerIdx) continue;
 
-        int16_t rowY = qy + 36 + (rowIdx * 16);
+        int16_t rowY = 36 + (rowIdx * 16);
         bool isSelected = (isCmdrActive && p.cmdrSource == opp);
         uint8_t dmg = p.cmdrDmg[opp];
         uint16_t oppColor = getPlayerColor(opp);
 
         if (isSelected) {
             // Highlight active selected opponent
-            tft.fillRoundRect(qx + 86, rowY - 1, 68, 14, 2, oppColor);
-            tft.setTextColor(COLOR_BLACK, oppColor);
+            quadCanvas.fillRoundRect(86, rowY - 1, 68, 14, 2, oppColor);
+            quadCanvas.setTextColor(COLOR_BLACK, oppColor);
         } else {
             uint16_t labelCol = (dmg >= LETHAL_CMDR_DAMAGE) ? COLOR_DEAD_TEXT : oppColor;
-            tft.setTextColor(labelCol, bgColor);
+            quadCanvas.setTextColor(labelCol, bgColor);
         }
 
-        tft.setTextSize(1);
-        tft.setCursor(qx + 89, rowY + 2);
-        tft.printf("P%d", opp + 1);
+        quadCanvas.setTextSize(1);
+        quadCanvas.setCursor(89, rowY + 2);
+        quadCanvas.printf("P%d", opp + 1);
 
         // Value
         if (isSelected) {
-            tft.setTextColor(COLOR_BLACK, oppColor);
+            quadCanvas.setTextColor(COLOR_BLACK, oppColor);
         } else {
             uint16_t valCol = (dmg >= LETHAL_CMDR_DAMAGE) ? COLOR_DEAD_TEXT : COLOR_WHITE;
-            tft.setTextColor(valCol, bgColor);
+            quadCanvas.setTextColor(valCol, bgColor);
         }
-        tft.setCursor(qx + 120, rowY + 2);
-        tft.printf("%2d", dmg);
+        quadCanvas.setCursor(120, rowY + 2);
+        quadCanvas.printf("%2d", dmg);
 
         if (dmg >= LETHAL_CMDR_DAMAGE && !isSelected) {
-            tft.setCursor(qx + 138, rowY + 2);
-            tft.print("!");
+            quadCanvas.setCursor(138, rowY + 2);
+            quadCanvas.print("!");
         }
 
         rowIdx++;
     }
 
     // 3. Footer Status Bar / Lethal Alert
-    tft.fillRect(qx + 4, qy + 92, qw - 8, 22, bgColor);
+    quadCanvas.fillRect(4, 92, qw - 8, 22, bgColor);
     if (p.isDead) {
-        tft.fillRoundRect(qx + 6, qy + 92, qw - 12, 20, 3, COLOR_DEAD_TEXT);
-        tft.setTextColor(COLOR_WHITE);
-        tft.setTextSize(1);
-        tft.setCursor(qx + 10, qy + 98);
+        quadCanvas.fillRoundRect(6, 92, qw - 12, 20, 3, COLOR_DEAD_TEXT);
+        quadCanvas.setTextColor(COLOR_WHITE);
+        quadCanvas.setTextSize(1);
+        quadCanvas.setCursor(10, 98);
 
         // Determine specific cause of death
         int8_t killerOpp = -1;
-        for (uint8_t opp = 0; opp < NUM_PLAYERS; opp++) {
+        for (uint8_t opp = 0; opp < count; opp++) {
             if (opp != playerIdx && p.cmdrDmg[opp] >= LETHAL_CMDR_DAMAGE) {
                 killerOpp = opp;
                 break;
@@ -188,46 +235,233 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
         }
 
         if (killerOpp >= 0) {
-            tft.printf("*** DEAD: 21 CMDR (P%d) ***", killerOpp + 1);
+            quadCanvas.printf("*** DEAD: 21 CMDR (P%d) ***", killerOpp + 1);
         } else if (p.life <= 0) {
-            tft.print("*** DEAD: 0 LIFE ***");
+            quadCanvas.print("*** DEAD: 0 LIFE ***");
         } else {
-            tft.print("*** DEAD: 10 POIS ***");
+            quadCanvas.print("*** DEAD: 10 POIS ***");
         }
     } else {
-        tft.setTextSize(1);
+        quadCanvas.setTextSize(1);
         if (p.activeMode == MODE_POISON) {
-            tft.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
-            tft.setCursor(qx + 8, qy + 98);
-            tft.printf(" [ADJUSTING POISON: %d] ", p.poison);
+            quadCanvas.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
+            quadCanvas.setCursor(8, 98);
+            quadCanvas.printf(" [ADJUSTING POISON: %d] ", p.poison);
         } else if (p.activeMode == MODE_TAX) {
-            tft.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
-            tft.setCursor(qx + 8, qy + 98);
-            tft.printf(" [ADJUSTING TAX: +%d] ", p.tax);
+            quadCanvas.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
+            quadCanvas.setCursor(8, 98);
+            quadCanvas.printf(" [ADJUSTING TAX: +%d] ", p.tax);
         } else if (p.activeMode == MODE_CMDR) {
-            tft.setTextColor(COLOR_LIGHTGREY, bgColor);
-            tft.setCursor(qx + 8, qy + 98);
-            tft.printf("Dial: CMDR P%d (+/-)", p.cmdrSource + 1);
+            quadCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
+            quadCanvas.setCursor(8, 98);
+            quadCanvas.printf("Dial: CMDR P%d (+/-)", p.cmdrSource + 1);
         } else {
-            tft.setTextColor(COLOR_LIGHTGREY, bgColor);
-            tft.setCursor(qx + 12, qy + 98);
-            tft.print("Dial: LIFE (+/-)");
+            quadCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
+            quadCanvas.setCursor(12, 98);
+            quadCanvas.print("Dial: LIFE (+/-)");
         }
     }
 
+    // Blit rendered quadrant buffer to hardware display
+    tft.drawRGBBitmap(qx, qy, quadCanvas.getBuffer(), qw, qh);
+
+    // Ensure center dividers remain cleanly drawn
+    drawStaticLayout();
+
     // Mark quadrant as clean
+    state.clearDirty(playerIdx);
+}
+
+void DisplayManager::renderHalf(uint8_t playerIdx) {
+    if (playerIdx >= state.getPlayerCount()) return;
+
+    int16_t qx, qy, qw, qh;
+    getQuadrantBounds(playerIdx, qx, qy, qw, qh);
+    const PlayerState& p = state.getPlayer(playerIdx);
+    uint16_t pColor = getPlayerColor(playerIdx);
+    uint16_t bgColor = getQuadrantBg(playerIdx);
+    uint8_t count = state.getPlayerCount();
+
+    // P1 (top half) is viewed across the table, rotated 180 deg
+    bool isFlipped = (playerIdx == 0);
+    halfCanvas.setRotation(isFlipped ? 2 : 0);
+    halfCanvas.fillScreen(bgColor);
+
+    // 1. Header Bar: Player Badge (Left) + Secondary Poison/Tax (Right)
+    halfCanvas.fillRect(6, 4, qw - 12, 16, bgColor);
+
+    // Player Badge (filled rounded rectangle)
+    halfCanvas.fillRoundRect(8, 4, 34, 14, 3, pColor);
+    halfCanvas.setTextColor(COLOR_BLACK);
+    halfCanvas.setTextSize(1);
+    halfCanvas.setCursor(17, 7);
+    halfCanvas.printf("P%d", playerIdx + 1);
+
+    // Secondary Stats in Header
+    halfCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
+    halfCanvas.setTextSize(1);
+    halfCanvas.setCursor(55, 7);
+    halfCanvas.printf("POISON: %d    TAX: +%d", p.poison, p.tax);
+
+    // Vertical column divider between Life and Commander Damage
+    halfCanvas.drawFastVLine(160, 22, 66, COLOR_DIVIDER);
+
+    // 2. Dual Counter Display (Life on Left, Commander Damage on Right)
+    // --- LEFT COLUMN: LIFE (Width: 150 px) ---
+    bool isLifeActive = (p.activeMode == MODE_LIFE);
+    halfCanvas.setTextSize(1);
+    halfCanvas.setTextColor(isLifeActive ? pColor : COLOR_LIGHTGREY, bgColor);
+    halfCanvas.setCursor(14, 24);
+    halfCanvas.printf("%sLIFE", isLifeActive ? "> " : "  ");
+
+    char lifeStr[12];
+    snprintf(lifeStr, sizeof(lifeStr), "%d", p.life);
+    uint8_t lifeLen = strlen(lifeStr);
+    uint8_t lifeTextSize = (lifeLen > 3) ? 4 : 5;
+    uint8_t lifeCharW = (lifeTextSize == 5) ? 30 : 24;
+    int16_t lifeTotalW = lifeLen * lifeCharW;
+    int16_t lifeX = 8 + (144 - lifeTotalW) / 2;
+    int16_t lifeY = (lifeTextSize == 5) ? 36 : 42;
+
+    halfCanvas.setTextColor(isLifeActive ? COLOR_WHITE : pColor, bgColor);
+    halfCanvas.setTextSize(lifeTextSize);
+    halfCanvas.setCursor(lifeX, lifeY);
+    halfCanvas.print(lifeStr);
+
+    // --- RIGHT COLUMN: COMMANDER DAMAGE (Width: 150 px) ---
+    bool isCmdrActive = (p.activeMode == MODE_CMDR);
+    halfCanvas.setTextSize(1);
+    halfCanvas.setTextColor(isCmdrActive ? pColor : COLOR_LIGHTGREY, bgColor);
+    halfCanvas.setCursor(174, 24);
+    halfCanvas.print("CMDR DMG");
+
+    if (count == 2) {
+        // 1v1: Only 1 opponent commander
+        uint8_t opp = (playerIdx == 0) ? 1 : 0;
+        uint8_t dmg = p.cmdrDmg[opp];
+        uint16_t oppColor = getPlayerColor(opp);
+
+        halfCanvas.fillRoundRect(174, 40, 36, 18, 3, oppColor);
+        halfCanvas.setTextColor(COLOR_BLACK, oppColor);
+        halfCanvas.setTextSize(1);
+        halfCanvas.setCursor(182, 45);
+        halfCanvas.printf("P%d", opp + 1);
+
+        uint16_t valCol = (dmg >= LETHAL_CMDR_DAMAGE) ? COLOR_DEAD_TEXT : (isCmdrActive ? COLOR_WHITE : oppColor);
+        halfCanvas.setTextColor(valCol, bgColor);
+        halfCanvas.setTextSize(4);
+        halfCanvas.setCursor(230, 36);
+        halfCanvas.printf("%2d", dmg);
+
+        if (dmg >= LETHAL_CMDR_DAMAGE) {
+            halfCanvas.setTextSize(2);
+            halfCanvas.setCursor(290, 42);
+            halfCanvas.print("!");
+        }
+    } else {
+        // 3-Player Mode: 2 opponents
+        uint8_t rowIdx = 0;
+        for (uint8_t opp = 0; opp < count; opp++) {
+            if (opp == playerIdx) continue;
+
+            int16_t rowY = 38 + (rowIdx * 22);
+            bool isSelected = (isCmdrActive && p.cmdrSource == opp);
+            uint8_t dmg = p.cmdrDmg[opp];
+            uint16_t oppColor = getPlayerColor(opp);
+
+            if (isSelected) {
+                halfCanvas.fillRoundRect(174, rowY - 2, 138, 18, 3, oppColor);
+                halfCanvas.setTextColor(COLOR_BLACK, oppColor);
+            } else {
+                uint16_t labelCol = (dmg >= LETHAL_CMDR_DAMAGE) ? COLOR_DEAD_TEXT : oppColor;
+                halfCanvas.setTextColor(labelCol, bgColor);
+            }
+
+            halfCanvas.setTextSize(1);
+            halfCanvas.setCursor(182, rowY + 3);
+            halfCanvas.printf("P%d", opp + 1);
+
+            if (isSelected) {
+                halfCanvas.setTextColor(COLOR_BLACK, oppColor);
+            } else {
+                uint16_t valCol = (dmg >= LETHAL_CMDR_DAMAGE) ? COLOR_DEAD_TEXT : COLOR_WHITE;
+                halfCanvas.setTextColor(valCol, bgColor);
+            }
+            halfCanvas.setCursor(240, rowY + 3);
+            halfCanvas.printf("%2d", dmg);
+
+            if (dmg >= LETHAL_CMDR_DAMAGE && !isSelected) {
+                halfCanvas.setCursor(285, rowY + 3);
+                halfCanvas.print("!");
+            }
+            rowIdx++;
+        }
+    }
+
+    // 3. Footer Status Bar / Lethal Alert
+    halfCanvas.fillRect(6, 92, qw - 12, 22, bgColor);
+    if (p.isDead) {
+        halfCanvas.fillRoundRect(8, 92, qw - 16, 20, 3, COLOR_DEAD_TEXT);
+        halfCanvas.setTextColor(COLOR_WHITE);
+        halfCanvas.setTextSize(1);
+        halfCanvas.setCursor(30, 98);
+
+        int8_t killerOpp = -1;
+        for (uint8_t opp = 0; opp < count; opp++) {
+            if (opp != playerIdx && p.cmdrDmg[opp] >= LETHAL_CMDR_DAMAGE) {
+                killerOpp = opp;
+                break;
+            }
+        }
+        if (killerOpp >= 0) {
+            halfCanvas.printf("*** DEAD: 21 CMDR (P%d) ***", killerOpp + 1);
+        } else if (p.life <= 0) {
+            halfCanvas.print("*** DEAD: 0 LIFE ***");
+        } else {
+            halfCanvas.print("*** DEAD: 10 POIS ***");
+        }
+    } else {
+        halfCanvas.setTextSize(1);
+        if (p.activeMode == MODE_POISON) {
+            halfCanvas.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
+            halfCanvas.setCursor(20, 98);
+            halfCanvas.printf(" [ADJUSTING POISON: %d] ", p.poison);
+        } else if (p.activeMode == MODE_TAX) {
+            halfCanvas.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
+            halfCanvas.setCursor(20, 98);
+            halfCanvas.printf(" [ADJUSTING TAX: +%d] ", p.tax);
+        } else if (p.activeMode == MODE_CMDR) {
+            halfCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
+            halfCanvas.setCursor(20, 98);
+            halfCanvas.printf("Dial: CMDR P%d (+/-)", p.cmdrSource + 1);
+        } else {
+            halfCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
+            halfCanvas.setCursor(30, 98);
+            halfCanvas.print("Dial: LIFE (+/-)");
+        }
+    }
+
+    // Blit rendered half buffer to display
+    tft.drawRGBBitmap(qx, qy, halfCanvas.getBuffer(), qw, qh);
+    drawStaticLayout();
     state.clearDirty(playerIdx);
 }
 
 void DisplayManager::updateDirtyQuadrants() {
     if (currentScreen != SCREEN_GAME) return;
 
-    for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+    uint8_t count = state.getPlayerCount();
+    bool anyDrawn = false;
+    for (uint8_t i = 0; i < count; i++) {
         bool deadChanged = (state.getPlayer(i).isDead != lastRenderedDead[i]);
         if (state.getPlayer(i).dirty || deadChanged) {
             lastRenderedDead[i] = state.getPlayer(i).isDead;
             renderQuadrant(i, deadChanged);
+            anyDrawn = true;
         }
+    }
+    if (anyDrawn) {
+        drawStaticLayout();
     }
 }
 
@@ -242,6 +476,82 @@ void DisplayManager::toggleEventLogScreen() {
 
 ScreenMode DisplayManager::getScreenMode() const {
     return currentScreen;
+}
+
+void DisplayManager::openPlayerSelectScreen() {
+    currentScreen = SCREEN_PLAYER_SELECT;
+    menuPlayerCount = state.getPlayerCount();
+    drawPlayerSelectMenu();
+}
+
+void DisplayManager::adjustPlayerSelect(int8_t step) {
+    int16_t next = (int16_t)menuPlayerCount + step;
+    if (next < MIN_PLAYERS) next = MAX_PLAYERS;
+    if (next > MAX_PLAYERS) next = MIN_PLAYERS;
+    menuPlayerCount = (uint8_t)next;
+    drawPlayerSelectMenu();
+}
+
+void DisplayManager::confirmPlayerSelect(uint32_t currentMs) {
+    state.setPlayerCount(menuPlayerCount, currentMs);
+    returnToGameScreen();
+}
+
+uint8_t DisplayManager::getSelectedPlayerCount() const {
+    return menuPlayerCount;
+}
+
+void DisplayManager::drawPlayerSelectMenu() {
+    tft.fillScreen(COLOR_BLACK);
+
+    // Title Bar
+    tft.fillRect(0, 0, SCREEN_WIDTH, 28, COLOR_DARKGREY);
+    tft.drawFastHLine(0, 28, SCREEN_WIDTH, COLOR_WHITE);
+    tft.setTextColor(COLOR_WHITE);
+    tft.setTextSize(2);
+    tft.setCursor(45, 6);
+    tft.print("SELECT PLAYER COUNT");
+
+    // 3 Options: 2, 3, 4 players
+    const char* titles[3] = { "2 PLAYERS", "3 PLAYERS", "4 PLAYERS" };
+    const char* descs[3]  = { "1v1 Duel (Two Dynamic Halves)", "1 Top Half vs 2 Bottom Quads", "Standard 4-Quadrant Tabletop" };
+    uint8_t counts[3]     = { 2, 3, 4 };
+
+    int16_t startY = 46;
+    for (uint8_t i = 0; i < 3; i++) {
+        int16_t rowY = startY + (i * 48);
+        bool isSelected = (menuPlayerCount == counts[i]);
+
+        if (isSelected) {
+            tft.fillRoundRect(20, rowY, 280, 42, 6, COLOR_P2);
+            tft.drawRoundRect(19, rowY - 1, 282, 44, 7, COLOR_WHITE);
+            tft.setTextColor(COLOR_BLACK);
+        } else {
+            tft.fillRoundRect(20, rowY, 280, 42, 6, COLOR_DARKGREY);
+            tft.drawRoundRect(20, rowY, 280, 42, 6, COLOR_DIVIDER);
+            tft.setTextColor(COLOR_WHITE);
+        }
+
+        tft.setTextSize(2);
+        tft.setCursor(35, rowY + 6);
+        if (isSelected) {
+            tft.printf("> %s <", titles[i]);
+        } else {
+            tft.printf("  %s", titles[i]);
+        }
+
+        tft.setTextSize(1);
+        tft.setTextColor(isSelected ? COLOR_BLACK : COLOR_LIGHTGREY);
+        tft.setCursor(45, rowY + 27);
+        tft.print(descs[i]);
+    }
+
+    // Footer instruction
+    tft.drawFastHLine(0, 205, SCREEN_WIDTH, COLOR_DARKGREY);
+    tft.setTextColor(COLOR_WHITE);
+    tft.setTextSize(1);
+    tft.setCursor(20, 218);
+    tft.print("Turn knob: Select  |  Click knob/button: Confirm");
 }
 
 void DisplayManager::drawEventLog() {
@@ -275,7 +585,7 @@ void DisplayManager::drawEventLog() {
                 EventLog::formatEvent(evt, str, sizeof(str));
 
                 uint16_t color = COLOR_WHITE;
-                if (evt.player < NUM_PLAYERS) {
+                if (evt.player < state.getPlayerCount()) {
                     color = getPlayerColor(evt.player);
                 } else {
                     color = COLOR_P4; // Yellow for system
@@ -306,7 +616,8 @@ void DisplayManager::startRollAnimation(uint8_t winningPlayer, uint32_t currentM
 
     tft.fillScreen(COLOR_BLACK);
     drawStaticLayout();
-    for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+    uint8_t count = state.getPlayerCount();
+    for (uint8_t i = 0; i < count; i++) {
         lastRenderedDead[i] = state.getPlayer(i).isDead;
         renderQuadrant(i, true);
     }
@@ -317,17 +628,28 @@ bool DisplayManager::updateAnimation(uint32_t currentMs) {
 
     // Elapsed time since start of animation
     uint32_t elapsed = currentMs - animStartTime;
+    uint8_t count = state.getPlayerCount();
 
     if (!animSettled) {
         if (currentMs - lastAnimTick >= animDelay) {
             lastAnimTick = currentMs;
 
-            // Highlight cycle order: P1(0) -> P2(1) -> P4(3) -> P3(2) (clockwise)
-            static const uint8_t CYCLE[4] = { 0, 1, 3, 2 };
-            uint8_t currentP = CYCLE[animCurrentHighlight];
+            uint8_t currentP = 0;
+            if (count == 2) {
+                currentP = animCurrentHighlight % 2;
+                animCurrentHighlight = (animCurrentHighlight + 1) % 2;
+            } else if (count == 3) {
+                static const uint8_t CYCLE3[3] = { 0, 2, 1 };
+                currentP = CYCLE3[animCurrentHighlight % 3];
+                animCurrentHighlight = (animCurrentHighlight + 1) % 3;
+            } else {
+                static const uint8_t CYCLE4[4] = { 0, 1, 3, 2 };
+                currentP = CYCLE4[animCurrentHighlight % 4];
+                animCurrentHighlight = (animCurrentHighlight + 1) % 4;
+            }
 
             // Clear previous highlight borders using each quadrant's actual background color
-            for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+            for (uint8_t i = 0; i < count; i++) {
                 int16_t qx, qy, qw, qh;
                 getQuadrantBounds(i, qx, qy, qw, qh);
                 uint16_t bg = getQuadrantBg(i);
@@ -340,8 +662,6 @@ bool DisplayManager::updateAnimation(uint32_t currentMs) {
             getQuadrantBounds(currentP, hx, hy, hw, hh);
             tft.drawRect(hx + 2, hy + 2, hw - 4, hh - 4, COLOR_WHITE);
             tft.drawRect(hx + 3, hy + 3, hw - 6, hh - 6, getPlayerColor(currentP));
-
-            animCurrentHighlight = (animCurrentHighlight + 1) % 4;
 
             // Gradually slow down
             if (elapsed > 600)  animDelay = 80;

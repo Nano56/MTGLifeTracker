@@ -73,6 +73,38 @@ int main() {
     TEST_ASSERT(display.getScreenMode() == SCREEN_GAME);
     printf("  [PASS] Event log screen toggle verified\n");
 
+    // 7. Player Select Screen (2, 3, 4 Players)
+    display.openPlayerSelectScreen();
+    TEST_ASSERT(display.getScreenMode() == SCREEN_PLAYER_SELECT);
+    TEST_ASSERT(display.getSelectedPlayerCount() == 4);
+
+    display.adjustPlayerSelect(1); // 4 -> wraps to 2
+    TEST_ASSERT(display.getSelectedPlayerCount() == 2);
+
+    display.confirmPlayerSelect(11000);
+    TEST_ASSERT(display.getScreenMode() == SCREEN_GAME);
+    TEST_ASSERT(state.getPlayerCount() == 2);
+    printf("  [PASS] Player select menu set game to 2 players\n");
+
+    // 8. Render 2-Player Dynamic Halves
+    for (uint8_t i = 0; i < 2; i++) {
+        display.renderQuadrant(i, true);
+        TEST_ASSERT(!state.getPlayer(i).dirty);
+    }
+    printf("  [PASS] 2-Player dynamic halves rendered\n");
+
+    // 9. Render 3-Player Dynamic Halves & Quads
+    display.openPlayerSelectScreen();
+    display.adjustPlayerSelect(1); // 2 -> 3
+    TEST_ASSERT(display.getSelectedPlayerCount() == 3);
+    display.confirmPlayerSelect(12000);
+    TEST_ASSERT(state.getPlayerCount() == 3);
+    for (uint8_t i = 0; i < 3; i++) {
+        display.renderQuadrant(i, true);
+        TEST_ASSERT(!state.getPlayer(i).dirty);
+    }
+    printf("  [PASS] 3-Player layout rendered\n");
+
     printf(">>> test_display: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }

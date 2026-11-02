@@ -10,7 +10,8 @@
 enum ScreenMode {
     SCREEN_GAME,
     SCREEN_EVENT_LOG,
-    SCREEN_ROLL_ANIMATION
+    SCREEN_ROLL_ANIMATION,
+    SCREEN_PLAYER_SELECT
 };
 
 class DisplayManager {
@@ -38,6 +39,12 @@ public:
     // Toggle between game screen and event log screen
     void toggleEventLogScreen();
 
+    // Player Count Setup Menu
+    void openPlayerSelectScreen();
+    void adjustPlayerSelect(int8_t step);
+    void confirmPlayerSelect(uint32_t currentMs = 0);
+    uint8_t getSelectedPlayerCount() const;
+
     // Check current screen mode
     ScreenMode getScreenMode() const;
 
@@ -51,8 +58,11 @@ private:
     Adafruit_ILI9341& tft;
     GameState& state;
     EventLog& log;
+    GFXcanvas16 quadCanvas;
+    GFXcanvas16 halfCanvas;
 
     ScreenMode currentScreen;
+    uint8_t menuPlayerCount;
     bool lastRenderedDead[NUM_PLAYERS];
 
     // Roll animation state
@@ -67,6 +77,8 @@ private:
     void getQuadrantBounds(uint8_t playerIdx, int16_t& qx, int16_t& qy, int16_t& qw, int16_t& qh);
     uint16_t getPlayerColor(uint8_t playerIdx);
     void drawEventLog();
+    void drawPlayerSelectMenu();
+    void renderHalf(uint8_t playerIdx);
 };
 
 #endif // DISPLAY_MANAGER_H

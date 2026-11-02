@@ -19,6 +19,7 @@ public:
     virtual void drawRoundRect(int16_t, int16_t, int16_t, int16_t, int16_t, uint16_t) {}
     virtual void fillScreen(uint16_t) {}
     virtual void setRotation(uint8_t) {}
+    virtual void drawRGBBitmap(int16_t, int16_t, uint16_t*, int16_t, int16_t) {}
 
     void setCursor(int16_t x, int16_t y) { cursor_x = x; cursor_y = y; }
     void setTextSize(uint8_t s) { textsize = s; }
@@ -40,6 +41,15 @@ protected:
     int16_t cursor_x, cursor_y;
     uint8_t textsize;
     uint16_t textcolor, textbgcolor;
+};
+
+class GFXcanvas16 : public Adafruit_GFX {
+public:
+    GFXcanvas16(uint16_t w, uint16_t h) : Adafruit_GFX(w, h), buffer(new uint16_t[w * h]()) {}
+    ~GFXcanvas16() { delete[] buffer; }
+    uint16_t* getBuffer() const { return buffer; }
+private:
+    uint16_t* buffer;
 };
 
 #endif // ADAFRUIT_GFX_H
