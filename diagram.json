@@ -76,28 +76,28 @@
     [ "btn_reset:1.l", "esp:GND.2", "black", [ "h-10", "v110" ] ],
     [ "btn_reset:2.l", "esp:D13", "red", [ "h-15", "v120" ] ],
 
-    [ "p1_knob:CLK", "esp:D25", "green", [ "v25" ] ],
-    [ "p1_knob:DT", "esp:D26", "blue", [ "v30" ] ],
-    [ "p1_knob:SW", "esp:D27", "orange", [ "v35" ] ],
-    [ "p1_knob:GND", "esp:GND.2", "black", [ "v40" ] ],
-    [ "p1_knob:VCC", "esp:3V3", "red", [ "v20" ] ],
+    [ "p1_knob:CLK", "esp:D25", "green", [ "v30", "h-407" ] ],
+    [ "p1_knob:DT", "esp:D26", "blue", [ "v37", "h-411" ] ],
+    [ "p1_knob:SW", "esp:D27", "orange", [ "v44", "h-415" ] ],
+    [ "p1_knob:GND", "esp:GND.2", "black", [ "v52", "h-451" ] ],
+    [ "p1_knob:VCC", "esp:3V3", "red", [ "v22", "h-476" ] ],
 
-    [ "p2_knob:CLK", "esp:D5", "green", [ "v25" ] ],
-    [ "p2_knob:DT", "esp:TX2", "blue", [ "v30" ] ],
-    [ "p2_knob:SW", "esp:RX2", "orange", [ "v35" ] ],
-    [ "p2_knob:GND", "esp:GND.1", "black", [ "v40" ] ],
-    [ "p2_knob:VCC", "esp:3V3", "red", [ "v20" ] ],
+    [ "p2_knob:CLK", "esp:D5", "green", [ "v26", "h-815", "v330" ] ],
+    [ "p2_knob:DT", "esp:TX2", "blue", [ "v32", "h-800", "v300" ] ],
+    [ "p2_knob:SW", "esp:RX2", "orange", [ "v38", "h-785", "v290" ] ],
+    [ "p2_knob:GND", "esp:GND.1", "black", [ "v48", "h-755", "v270" ] ],
+    [ "p2_knob:VCC", "esp:3V3", "red", [ "v20", "h-760" ] ],
 
-    [ "p3_knob:CLK", "esp:D33", "green", [ "v20" ] ],
-    [ "p3_knob:DT", "esp:D14", "blue", [ "v25" ] ],
-    [ "p3_knob:SW", "esp:D32", "orange", [ "v30" ] ],
-    [ "p3_knob:GND", "esp:GND.2", "black", [ "v35" ] ],
-    [ "p3_knob:VCC", "esp:3V3", "red", [ "v15" ] ],
+    [ "p3_knob:CLK", "esp:D33", "green", [ "v20", "h-392" ] ],
+    [ "p3_knob:DT", "esp:D14", "blue", [ "v27", "h-439" ] ],
+    [ "p3_knob:SW", "esp:D32", "orange", [ "v34", "h-358" ] ],
+    [ "p3_knob:GND", "esp:GND.2", "black", [ "v41", "h-451" ] ],
+    [ "p3_knob:VCC", "esp:3V3", "red", [ "v48", "h-476" ] ],
 
-    [ "p4_knob:CLK", "esp:D4", "green", [ "v20" ] ],
-    [ "p4_knob:DT", "esp:D34", "blue", [ "v25" ] ],
-    [ "p4_knob:SW", "esp:D15", "orange", [ "v30" ] ],
-    [ "p4_knob:GND", "esp:GND.1", "black", [ "v35" ] ],
-    [ "p4_knob:VCC", "esp:3V3", "red", [ "v15" ] ]
+    [ "p4_knob:CLK", "esp:D4", "green", [ "v22", "h-709" ] ],
+    [ "p4_knob:DT", "esp:D34", "blue", [ "v29", "h-599" ] ],
+    [ "p4_knob:SW", "esp:D15", "orange", [ "v36", "h-717" ] ],
+    [ "p4_knob:GND", "esp:GND.1", "black", [ "v43", "h-711" ] ],
+    [ "p4_knob:VCC", "esp:3V3", "red", [ "v50", "h-736" ] ]
   ]
 }
