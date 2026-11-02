@@ -81,7 +81,6 @@ private:
     GameState& state;
     EventLog& log;
     GFXcanvas16 quadCanvas;
-    GFXcanvas16 halfCanvas;
 
     ScreenMode currentScreen;
     uint8_t menuPlayerCount;

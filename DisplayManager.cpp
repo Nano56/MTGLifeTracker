@@ -4,7 +4,6 @@
 
 DisplayManager::DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, EventLog& logRef)
     : tft(tftRef), state(stateRef), log(logRef), quadCanvas(QUAD_WIDTH, QUAD_HEIGHT),
-      halfCanvas(SCREEN_WIDTH, QUAD_HEIGHT),
       currentScreen(SCREEN_GAME), menuPlayerCount(DEFAULT_PLAYER_COUNT),
       selfTestStep(TEST_STEP_NONE), selfTestStepStartTime(0),
       rollWinner(0), animStartTime(0), lastAnimTick(0),
@@ -111,6 +110,7 @@ uint16_t DisplayManager::getQuadrantBg(uint8_t playerIdx) const {
 void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
     (void)forceFullRedraw;
     if (playerIdx >= state.getPlayerCount()) return;
+    if (quadCanvas.getBuffer() == nullptr) return;
 
     int16_t qx, qy, qw, qh;
     getQuadrantBounds(playerIdx, qx, qy, qw, qh);
@@ -279,6 +279,7 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
 
 void DisplayManager::renderHalf(uint8_t playerIdx) {
     if (playerIdx >= state.getPlayerCount()) return;
+    if (quadCanvas.getBuffer() == nullptr) return;
 
     int16_t qx, qy, qw, qh;
     getQuadrantBounds(playerIdx, qx, qy, qw, qh);
@@ -289,35 +290,35 @@ void DisplayManager::renderHalf(uint8_t playerIdx) {
 
     // P1 (top half) is viewed across the table, rotated 180 deg
     bool isFlipped = (playerIdx == 0);
-    halfCanvas.setRotation(isFlipped ? 2 : 0);
-    halfCanvas.fillScreen(bgColor);
+    quadCanvas.setRotation(isFlipped ? 2 : 0);
+
+    // =========================================================
+    // TILE 1: LIFE & IDENTITY (160x120)
+    // =========================================================
+    quadCanvas.fillScreen(bgColor);
 
     // 1. Header Bar: Player Badge (Left) + Secondary Poison/Tax (Right)
-    halfCanvas.fillRect(6, 4, qw - 12, 16, bgColor);
+    quadCanvas.fillRect(4, 4, QUAD_WIDTH - 8, 16, bgColor);
 
     // Player Badge (filled rounded rectangle)
-    halfCanvas.fillRoundRect(8, 4, 34, 14, 3, pColor);
-    halfCanvas.setTextColor(COLOR_BLACK);
-    halfCanvas.setTextSize(1);
-    halfCanvas.setCursor(17, 7);
-    halfCanvas.printf("P%d", playerIdx + 1);
+    quadCanvas.fillRoundRect(6, 4, 28, 14, 3, pColor);
+    quadCanvas.setTextColor(COLOR_BLACK);
+    quadCanvas.setTextSize(1);
+    quadCanvas.setCursor(13, 7);
+    quadCanvas.printf("P%d", playerIdx + 1);
 
     // Secondary Stats in Header
-    halfCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
-    halfCanvas.setTextSize(1);
-    halfCanvas.setCursor(55, 7);
-    halfCanvas.printf("POISON: %d    TAX: +%d", p.poison, p.tax);
+    quadCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
+    quadCanvas.setTextSize(1);
+    quadCanvas.setCursor(42, 7);
+    quadCanvas.printf("PSN:%d TAX:+%d", p.poison, p.tax);
 
-    // Vertical column divider between Life and Commander Damage
-    halfCanvas.drawFastVLine(160, 22, 66, COLOR_DIVIDER);
-
-    // 2. Dual Counter Display (Life on Left, Commander Damage on Right)
-    // --- LEFT COLUMN: LIFE (Width: 150 px) ---
+    // 2. Big Life Total
     bool isLifeActive = (p.activeMode == MODE_LIFE);
-    halfCanvas.setTextSize(1);
-    halfCanvas.setTextColor(isLifeActive ? pColor : COLOR_LIGHTGREY, bgColor);
-    halfCanvas.setCursor(14, 24);
-    halfCanvas.printf("%sLIFE", isLifeActive ? "> " : "  ");
+    quadCanvas.setTextSize(1);
+    quadCanvas.setTextColor(isLifeActive ? pColor : COLOR_LIGHTGREY, bgColor);
+    quadCanvas.setCursor(10, 24);
+    quadCanvas.printf("%sLIFE", isLifeActive ? "> " : "  ");
 
     char lifeStr[12];
     snprintf(lifeStr, sizeof(lifeStr), "%d", p.life);
@@ -325,129 +326,157 @@ void DisplayManager::renderHalf(uint8_t playerIdx) {
     uint8_t lifeTextSize = (lifeLen > 3) ? 4 : 5;
     uint8_t lifeCharW = (lifeTextSize == 5) ? 30 : 24;
     int16_t lifeTotalW = lifeLen * lifeCharW;
-    int16_t lifeX = 8 + (144 - lifeTotalW) / 2;
+    int16_t lifeX = (QUAD_WIDTH - lifeTotalW) / 2;
     int16_t lifeY = (lifeTextSize == 5) ? 36 : 42;
 
-    halfCanvas.setTextColor(isLifeActive ? COLOR_WHITE : pColor, bgColor);
-    halfCanvas.setTextSize(lifeTextSize);
-    halfCanvas.setCursor(lifeX, lifeY);
-    halfCanvas.print(lifeStr);
+    quadCanvas.setTextColor(isLifeActive ? COLOR_WHITE : pColor, bgColor);
+    quadCanvas.setTextSize(lifeTextSize);
+    quadCanvas.setCursor(lifeX, lifeY);
+    quadCanvas.print(lifeStr);
 
-    // --- RIGHT COLUMN: COMMANDER DAMAGE (Width: 150 px) ---
+    // 3. Footer Status Bar
+    quadCanvas.fillRect(4, 92, QUAD_WIDTH - 8, 22, bgColor);
+    if (p.isDead) {
+        quadCanvas.fillRoundRect(6, 94, QUAD_WIDTH - 12, 20, 3, COLOR_DEAD_TEXT);
+        quadCanvas.setTextColor(COLOR_WHITE);
+        quadCanvas.setTextSize(1);
+        quadCanvas.setCursor(12, 100);
+        if (p.life <= 0) {
+            quadCanvas.print("*** DEAD: 0 LIFE ***");
+        } else if (p.poison >= LETHAL_POISON) {
+            quadCanvas.print("*** DEAD: 10 POIS ***");
+        } else {
+            quadCanvas.print("*** DEAD: 21 CMDR ***");
+        }
+    } else {
+        quadCanvas.setTextSize(1);
+        if (p.activeMode == MODE_POISON) {
+            quadCanvas.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
+            quadCanvas.setCursor(14, 98);
+            quadCanvas.printf("[ADJUST POISON: %d]", p.poison);
+        } else if (p.activeMode == MODE_TAX) {
+            quadCanvas.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
+            quadCanvas.setCursor(18, 98);
+            quadCanvas.printf("[ADJUST TAX: +%d]", p.tax);
+        } else if (p.activeMode == MODE_CMDR) {
+            quadCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
+            quadCanvas.setCursor(16, 98);
+            quadCanvas.printf("Dial: CMDR P%d (+/-)", p.cmdrSource + 1);
+        } else {
+            quadCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
+            quadCanvas.setCursor(26, 98);
+            quadCanvas.print("Dial: LIFE (+/-)");
+        }
+    }
+
+    // Vertical seam divider inside the half
+    quadCanvas.drawFastVLine(QUAD_WIDTH - 1, 4, QUAD_HEIGHT - 8, COLOR_DIVIDER);
+
+    // Blit Tile 1: If rotated 180°, the player's left is board x = 160. If normal, x = 0.
+    tft.drawRGBBitmap(isFlipped ? QUAD_WIDTH : 0, qy, quadCanvas.getBuffer(), QUAD_WIDTH, QUAD_HEIGHT);
+
+    // =========================================================
+    // TILE 2: COMMANDER DAMAGE (160x120)
+    // =========================================================
+    quadCanvas.fillScreen(bgColor);
+
     bool isCmdrActive = (p.activeMode == MODE_CMDR);
-    halfCanvas.setTextSize(1);
-    halfCanvas.setTextColor(isCmdrActive ? pColor : COLOR_LIGHTGREY, bgColor);
-    halfCanvas.setCursor(174, 24);
-    halfCanvas.print("CMDR DMG");
+    quadCanvas.setTextSize(1);
+    quadCanvas.setTextColor(isCmdrActive ? pColor : COLOR_LIGHTGREY, bgColor);
+    quadCanvas.setCursor(12, 12);
+    quadCanvas.printf("%sCMDR DAMAGE", isCmdrActive ? "> " : "  ");
 
     if (count == 2) {
-        // 1v1: Only 1 opponent commander
+        // 1v1: Single opponent commander
         uint8_t opp = (playerIdx == 0) ? 1 : 0;
         uint8_t dmg = p.cmdrDmg[opp];
         uint16_t oppColor = getPlayerColor(opp);
 
-        halfCanvas.fillRoundRect(174, 40, 36, 18, 3, oppColor);
-        halfCanvas.setTextColor(COLOR_BLACK, oppColor);
-        halfCanvas.setTextSize(1);
-        halfCanvas.setCursor(182, 45);
-        halfCanvas.printf("P%d", opp + 1);
+        quadCanvas.fillRoundRect(14, 38, 42, 26, 4, oppColor);
+        quadCanvas.setTextColor(COLOR_BLACK);
+        quadCanvas.setTextSize(2);
+        quadCanvas.setCursor(24, 44);
+        quadCanvas.printf("P%d", opp + 1);
 
         uint16_t valCol = (dmg >= LETHAL_CMDR_DAMAGE) ? COLOR_DEAD_TEXT : (isCmdrActive ? COLOR_WHITE : oppColor);
-        halfCanvas.setTextColor(valCol, bgColor);
-        halfCanvas.setTextSize(4);
-        halfCanvas.setCursor(230, 36);
-        halfCanvas.printf("%2d", dmg);
+        quadCanvas.setTextColor(valCol, bgColor);
+        quadCanvas.setTextSize(4);
+        quadCanvas.setCursor(72, 36);
+        quadCanvas.printf("%2d", dmg);
 
         if (dmg >= LETHAL_CMDR_DAMAGE) {
-            halfCanvas.setTextSize(2);
-            halfCanvas.setCursor(290, 42);
-            halfCanvas.print("!");
+            quadCanvas.setTextSize(3);
+            quadCanvas.setCursor(130, 38);
+            quadCanvas.setTextColor(COLOR_DEAD_TEXT, bgColor);
+            quadCanvas.print("!");
         }
     } else {
-        // 3-Player Mode: 2 opponents
+        // 3-Player Mode (top player has 2 opponents)
         uint8_t rowIdx = 0;
         for (uint8_t opp = 0; opp < count; opp++) {
             if (opp == playerIdx) continue;
 
-            int16_t rowY = 38 + (rowIdx * 22);
+            int16_t rowY = 32 + (rowIdx * 28);
             bool isSelected = (isCmdrActive && p.cmdrSource == opp);
             uint8_t dmg = p.cmdrDmg[opp];
             uint16_t oppColor = getPlayerColor(opp);
 
             if (isSelected) {
-                halfCanvas.fillRoundRect(174, rowY - 2, 138, 18, 3, oppColor);
-                halfCanvas.setTextColor(COLOR_BLACK, oppColor);
+                quadCanvas.fillRoundRect(12, rowY - 2, 136, 24, 4, oppColor);
+                quadCanvas.setTextColor(COLOR_BLACK, oppColor);
             } else {
                 uint16_t labelCol = (dmg >= LETHAL_CMDR_DAMAGE) ? COLOR_DEAD_TEXT : oppColor;
-                halfCanvas.setTextColor(labelCol, bgColor);
+                quadCanvas.setTextColor(labelCol, bgColor);
             }
 
-            halfCanvas.setTextSize(1);
-            halfCanvas.setCursor(182, rowY + 3);
-            halfCanvas.printf("P%d", opp + 1);
+            quadCanvas.setTextSize(1);
+            quadCanvas.setCursor(20, rowY + 6);
+            quadCanvas.printf("P%d", opp + 1);
 
             if (isSelected) {
-                halfCanvas.setTextColor(COLOR_BLACK, oppColor);
+                quadCanvas.setTextColor(COLOR_BLACK, oppColor);
             } else {
                 uint16_t valCol = (dmg >= LETHAL_CMDR_DAMAGE) ? COLOR_DEAD_TEXT : COLOR_WHITE;
-                halfCanvas.setTextColor(valCol, bgColor);
+                quadCanvas.setTextColor(valCol, bgColor);
             }
-            halfCanvas.setCursor(240, rowY + 3);
-            halfCanvas.printf("%2d", dmg);
+            quadCanvas.setTextSize(2);
+            quadCanvas.setCursor(70, rowY + 3);
+            quadCanvas.printf("%2d", dmg);
 
             if (dmg >= LETHAL_CMDR_DAMAGE && !isSelected) {
-                halfCanvas.setCursor(285, rowY + 3);
-                halfCanvas.print("!");
+                quadCanvas.setTextSize(2);
+                quadCanvas.setTextColor(COLOR_DEAD_TEXT, bgColor);
+                quadCanvas.setCursor(120, rowY + 3);
+                quadCanvas.print("!");
             }
             rowIdx++;
         }
     }
 
-    // 3. Footer Status Bar / Lethal Alert
-    halfCanvas.fillRect(6, 92, qw - 12, 22, bgColor);
+    // Tile 2 Footer Prompt
+    quadCanvas.fillRect(4, 92, QUAD_WIDTH - 8, 22, bgColor);
     if (p.isDead) {
-        halfCanvas.fillRoundRect(8, 92, qw - 16, 20, 3, COLOR_DEAD_TEXT);
-        halfCanvas.setTextColor(COLOR_WHITE);
-        halfCanvas.setTextSize(1);
-        halfCanvas.setCursor(30, 98);
-
-        int8_t killerOpp = -1;
-        for (uint8_t opp = 0; opp < count; opp++) {
-            if (opp != playerIdx && p.cmdrDmg[opp] >= LETHAL_CMDR_DAMAGE) {
-                killerOpp = opp;
-                break;
-            }
-        }
-        if (killerOpp >= 0) {
-            halfCanvas.printf("*** DEAD: 21 CMDR (P%d) ***", killerOpp + 1);
-        } else if (p.life <= 0) {
-            halfCanvas.print("*** DEAD: 0 LIFE ***");
-        } else {
-            halfCanvas.print("*** DEAD: 10 POIS ***");
-        }
+        quadCanvas.setTextColor(COLOR_DEAD_TEXT, bgColor);
+        quadCanvas.setTextSize(1);
+        quadCanvas.setCursor(18, 98);
+        quadCanvas.print("*** ELIMINATED ***");
     } else {
-        halfCanvas.setTextSize(1);
-        if (p.activeMode == MODE_POISON) {
-            halfCanvas.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
-            halfCanvas.setCursor(20, 98);
-            halfCanvas.printf(" [ADJUSTING POISON: %d] ", p.poison);
-        } else if (p.activeMode == MODE_TAX) {
-            halfCanvas.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
-            halfCanvas.setCursor(20, 98);
-            halfCanvas.printf(" [ADJUSTING TAX: +%d] ", p.tax);
-        } else if (p.activeMode == MODE_CMDR) {
-            halfCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
-            halfCanvas.setCursor(20, 98);
-            halfCanvas.printf("Dial: CMDR P%d (+/-)", p.cmdrSource + 1);
+        quadCanvas.setTextSize(1);
+        if (p.activeMode == MODE_CMDR) {
+            quadCanvas.setTextColor(COLOR_WHITE, COLOR_DARKGREY);
+            quadCanvas.setCursor(10, 98);
+            quadCanvas.printf("[ADJUST CMDR P%d]", p.cmdrSource + 1);
         } else {
-            halfCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
-            halfCanvas.setCursor(30, 98);
-            halfCanvas.print("Dial: LIFE (+/-)");
+            quadCanvas.setTextColor(COLOR_LIGHTGREY, bgColor);
+            quadCanvas.setCursor(20, 98);
+            quadCanvas.print("Opponent CMDR Dmg");
         }
     }
 
-    // Blit rendered half buffer to display
-    tft.drawRGBBitmap(qx, qy, halfCanvas.getBuffer(), qw, qh);
+    // Blit Tile 2: If rotated 180°, the player's right is board x = 0. If normal, x = 160.
+    tft.drawRGBBitmap(isFlipped ? 0 : QUAD_WIDTH, qy, quadCanvas.getBuffer(), QUAD_WIDTH, QUAD_HEIGHT);
+
+    // Redraw static layout dividers and clear dirty flag
     drawStaticLayout();
     state.clearDirty(playerIdx);
 }
