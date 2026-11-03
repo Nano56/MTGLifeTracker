@@ -259,6 +259,15 @@ void loop() {
     bool isSwPressed = (digitalRead(ENCODER_SW_PINS[i]) == LOW);
     ButtonEvent swEvt = rotaryButtons[i].update(isSwPressed, currentMs);
 
+    uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
+    uint32_t knobHold = rotaryButtons[i].getPressDuration(currentMs);
+
+    if (rotaryButtons[i].isPressed() && knobHold >= PLAYER_COUNTDOWN_START_MS && displayMgr.getScreenMode() == SCREEN_GAME) {
+      displayMgr.showPlayerResetProgress(targetP, knobHold, PLAYER_RESET_LONG_PRESS_MS, currentMs);
+    } else if (!rotaryButtons[i].isPressed() && displayMgr.isPlayerResetProgressActive(targetP)) {
+      displayMgr.clearPlayerResetProgress(targetP);
+    }
+
     if (swEvt == BTN_EVENT_SHORT_CLICK) {
       if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
         displayMgr.confirmPlayerSelect(currentMs);
@@ -304,9 +313,14 @@ void loop() {
         continue;
       }
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
+      displayMgr.clearPlayerResetProgress(targetP);
       displayMgr.clearDelta(targetP);
       controller.dispatchAction(targetP, ACT_RESET_PLAYER, currentMs);
       persistence.markDirty(currentMs);
+
+      char toastBuf[32];
+      snprintf(toastBuf, sizeof(toastBuf), "P%d RESET: %d LIFE", targetP + 1, STARTING_LIFE);
+      displayMgr.showToast(toastBuf, currentMs);
       sysLog("[SYS] P%d reset to %d life\r\n", targetP + 1, STARTING_LIFE);
     }
   }
@@ -316,6 +330,13 @@ void loop() {
   // -------------------------------------------------------------
   bool isResetPressed = (digitalRead(BTN_RESET) == LOW);
   ButtonEvent rstEvt = tableButton.update(isResetPressed, currentMs);
+
+  uint32_t tableHold = tableButton.getPressDuration(currentMs);
+  if (tableButton.isPressed() && tableHold >= RESET_COUNTDOWN_START_MS && displayMgr.getScreenMode() == SCREEN_GAME) {
+    displayMgr.showTableResetProgress(tableHold, TABLE_RESET_LONG_PRESS_MS, TABLE_MENU_LONG_PRESS_MS, currentMs);
+  } else if (!tableButton.isPressed() && displayMgr.isTableResetProgressActive()) {
+    displayMgr.clearTableResetProgress();
+  }
 
   if (rstEvt == BTN_EVENT_SHORT_CLICK) {
     if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
@@ -340,17 +361,20 @@ void loop() {
     }
   } else if (rstEvt == BTN_EVENT_LONG_PRESS) {
     if (displayMgr.getScreenMode() != SCREEN_PLAYER_SELECT) {
+      displayMgr.clearTableResetProgress();
       // Full Table Game Reset via controller (1.5s hold)
       for (uint8_t p = 0; p < NUM_PLAYERS; p++) {
         displayMgr.clearDelta(p);
       }
       controller.dispatchAction(0, ACT_RESET_GAME, currentMs);
       displayMgr.returnToGameScreen();
+      displayMgr.showToast("GAME RESET: 40 LIFE", currentMs);
       persistence.clearStorage();
       sysLog("\r\n[SYS] === FULL GAME RESET: All %d players reset to %d Life ===\r\n\r\n",
              gameState.getPlayerCount(), STARTING_LIFE);
     }
   } else if (rstEvt == BTN_EVENT_VERY_LONG_PRESS) {
+    displayMgr.clearTableResetProgress();
     // 3.0s hold enters Player Count Setup screen
     displayMgr.openPlayerSelectScreen();
     sysLog("[SYS] Entered Player Count Setup menu (2, 3, or 4 Players)\r\n");

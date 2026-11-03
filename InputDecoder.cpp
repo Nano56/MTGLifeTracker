@@ -181,3 +181,15 @@ ButtonEvent ButtonDebouncer::update(bool isPressed, uint32_t currentMs) {
 
     return BTN_EVENT_NONE;
 }
+
+bool ButtonDebouncer::isPressed() const {
+    return (state == STATE_PRESSED);
+}
+
+uint32_t ButtonDebouncer::getPressDuration(uint32_t currentMs) const {
+    if (state == STATE_PRESSED && currentMs >= pressStartTime) {
+        return currentMs - pressStartTime;
+    }
+    return 0;
+}
+

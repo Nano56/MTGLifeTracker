@@ -224,6 +224,36 @@ int main() {
     display.clearDelta(NUM_PLAYERS);
     printf("  [PASS] Transient delta accumulator recording, accumulation, timeout and clear verified\n");
 
+    // 14. Reset Hold Countdown & Confirmation Toasts
+    display.showTableResetProgress(600, 1500, 3000, 35000);
+    TEST_ASSERT(display.isTableResetProgressActive() == true);
+
+    // Cancel early (release before threshold)
+    display.clearTableResetProgress();
+    TEST_ASSERT(display.isTableResetProgressActive() == false);
+
+    // Table reset confirmation toast
+    display.showToast("GAME RESET: 40 LIFE", 35500);
+    TEST_ASSERT(display.isToastActive() == true);
+    display.updateToast(37000); // 1500ms -> expired
+    TEST_ASSERT(display.isToastActive() == false);
+
+    // Player reset progress hold
+    display.showPlayerResetProgress(0, 1200, 3000, 37500);
+    TEST_ASSERT(display.isPlayerResetProgressActive(0) == true);
+    TEST_ASSERT(display.isPlayerResetProgressActive(1) == false);
+
+    // Clear player reset progress
+    display.clearPlayerResetProgress(0);
+    TEST_ASSERT(display.isPlayerResetProgressActive(0) == false);
+
+    // Player reset confirmation toast
+    display.showToast("P1 RESET: 40 LIFE", 38000);
+    TEST_ASSERT(display.isToastActive() == true);
+    display.updateToast(39500); // 1500ms -> expired
+    TEST_ASSERT(display.isToastActive() == false);
+    printf("  [PASS] Table and player reset countdown progress and confirmation toasts verified\n");
+
     printf(">>> test_display: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }

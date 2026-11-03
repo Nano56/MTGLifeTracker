@@ -67,6 +67,15 @@ public:
     void updateTransientDeltas(uint32_t currentMs);
     int16_t getRecentDelta(uint8_t playerIdx) const;
 
+    // Reset Hold Progress & Confirmation
+    void showTableResetProgress(uint32_t elapsedMs, uint32_t resetMs, uint32_t menuMs, uint32_t currentMs);
+    void clearTableResetProgress();
+    bool isTableResetProgressActive() const;
+
+    void showPlayerResetProgress(uint8_t playerIdx, uint32_t elapsedMs, uint32_t totalMs, uint32_t currentMs);
+    void clearPlayerResetProgress(uint8_t playerIdx);
+    bool isPlayerResetProgressActive(uint8_t playerIdx) const;
+
     // Player Count Setup Menu
     void openPlayerSelectScreen();
     void adjustPlayerSelect(int8_t step);
@@ -108,6 +117,14 @@ private:
     bool toastActive;
     uint32_t toastStartTime;
     char toastText[32];
+
+    // Reset Hold Progress state
+    bool tableResetActive;
+    uint32_t lastProgressRedrawMs;
+    uint8_t resetHoldPlayer;
+    uint32_t resetHoldElapsedMs;
+    uint32_t resetHoldTotalMs;
+    uint32_t lastPlayerProgressRedrawMs;
 
     // Startup Self-Test state
     SelfTestStep selfTestStep;

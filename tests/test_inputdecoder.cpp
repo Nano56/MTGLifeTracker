@@ -192,6 +192,30 @@ int main() {
     TEST_ASSERT(rot.drainSteps() == 0);
     printf("  [PASS] Rotary decoder step accumulation buffer and atomic draining verified\n");
 
+    // 15. Hold Status & Duration Query (Long Press Countdown Support)
+    btn.reset();
+    TEST_ASSERT(btn.isPressed() == false);
+    TEST_ASSERT(btn.getPressDuration(20000) == 0);
+
+    // Initial press (within debounce delay < 35ms)
+    btn.update(true, 20000);
+    btn.update(true, 20020);
+    TEST_ASSERT(btn.isPressed() == false); // Not debounced yet
+
+    // Debounce settled (>= 35ms)
+    btn.update(true, 20040);
+    TEST_ASSERT(btn.isPressed() == true);
+    TEST_ASSERT(btn.getPressDuration(20040) == 0);
+    TEST_ASSERT(btn.getPressDuration(20540) == 500);
+    TEST_ASSERT(btn.getPressDuration(21240) == 1200);
+
+    // Button released
+    btn.update(false, 21250);
+    btn.update(false, 21300); // Debounce settled release
+    TEST_ASSERT(btn.isPressed() == false);
+    TEST_ASSERT(btn.getPressDuration(21300) == 0);
+    printf("  [PASS] ButtonDebouncer isPressed() and getPressDuration() verified\n");
+
     printf("\n>>> test_inputdecoder: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }

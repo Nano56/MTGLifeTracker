@@ -37,6 +37,9 @@ DisplayManager::DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, Ev
     : tft(tftRef), state(stateRef), log(logRef), quadCanvas(QUAD_WIDTH, QUAD_HEIGHT),
       currentScreen(SCREEN_GAME), menuPlayerCount(DEFAULT_PLAYER_COUNT), logScrollOffset(0),
       toastActive(false), toastStartTime(0),
+      tableResetActive(false), lastProgressRedrawMs(0),
+      resetHoldPlayer(255), resetHoldElapsedMs(0), resetHoldTotalMs(0),
+      lastPlayerProgressRedrawMs(0),
       selfTestStep(TEST_STEP_NONE), selfTestStepStartTime(0),
       rollWinner(0), animStartTime(0), lastAnimTick(0),
       animCurrentHighlight(0), animDelay(50), animSettled(false) {
@@ -82,15 +85,18 @@ void DisplayManager::showToast(const char* message, uint32_t currentMs) {
     toastActive = true;
     toastStartTime = currentMs;
 
-    int16_t bx = (SCREEN_WIDTH - 200) / 2;
+    int16_t textLen = (int16_t)strlen(toastText);
+    int16_t boxW = (textLen * 12) + 24;
+    if (boxW < 200) boxW = 200;
+    if (boxW > SCREEN_WIDTH - 16) boxW = SCREEN_WIDTH - 16;
+    int16_t bx = (SCREEN_WIDTH - boxW) / 2;
     int16_t by = (SCREEN_HEIGHT - 32) / 2;
-    tft.fillRoundRect(bx, by, 200, 32, 6, COLOR_BLACK);
-    tft.drawRoundRect(bx, by, 200, 32, 6, COLOR_P3);
-    tft.drawRoundRect(bx + 1, by + 1, 198, 30, 5, COLOR_P3);
+    tft.fillRoundRect(bx, by, boxW, 32, 6, COLOR_BLACK);
+    tft.drawRoundRect(bx, by, boxW, 32, 6, COLOR_P3);
+    tft.drawRoundRect(bx + 1, by + 1, boxW - 2, 30, 5, COLOR_P3);
 
     tft.setTextColor(COLOR_P3);
     tft.setTextSize(2);
-    int16_t textLen = (int16_t)strlen(toastText);
     int16_t tx = (SCREEN_WIDTH - (textLen * 12)) / 2;
     int16_t ty = by + 8;
     tft.setCursor(tx, ty);
@@ -332,9 +338,30 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
         rowIdx++;
     }
 
-    // 3. Footer Status Bar / Lethal Alert
+    // 3. Footer Status Bar / Lethal Alert / Reset Progress
     quadCanvas.fillRect(4, 92, qw - 8, 22, bgColor);
-    if (p.isDead) {
+    if (resetHoldPlayer == playerIdx && resetHoldTotalMs > 0) {
+        quadCanvas.fillRoundRect(6, 92, qw - 12, 22, 3, COLOR_BLACK);
+        quadCanvas.drawRoundRect(6, 92, qw - 12, 22, 3, COLOR_DEAD_TEXT);
+
+        int32_t span = resetHoldTotalMs - 500;
+        int16_t maxFill = qw - 16;
+        int16_t fillW = 0;
+        if (span > 0 && resetHoldElapsedMs >= 500) {
+            fillW = (int16_t)(((int32_t)(resetHoldElapsedMs - 500) * maxFill) / span);
+        }
+        if (fillW > maxFill) fillW = maxFill;
+        if (fillW > 0) {
+            quadCanvas.fillRect(8, 94, fillW, 18, 0x8000); // Dark red fill
+        }
+
+        quadCanvas.setTextColor(COLOR_WHITE);
+        quadCanvas.setTextSize(1);
+        quadCanvas.setCursor(12, 99);
+        float remSec = (float)(resetHoldTotalMs - resetHoldElapsedMs) / 1000.0f;
+        if (remSec < 0.0f) remSec = 0.0f;
+        quadCanvas.printf("RESETTING P%d (%.1fs)", playerIdx + 1, remSec);
+    } else if (p.isDead) {
         quadCanvas.fillRoundRect(6, 92, qw - 12, 20, 3, COLOR_DEAD_TEXT);
         quadCanvas.setTextColor(COLOR_WHITE);
         quadCanvas.setTextSize(1);
@@ -468,9 +495,30 @@ void DisplayManager::renderHalf(uint8_t playerIdx) {
     quadCanvas.setCursor(lifeX, lifeY);
     quadCanvas.print(lifeStr);
 
-    // 3. Footer Status Bar
+    // 3. Footer Status Bar / Lethal Alert / Reset Progress
     quadCanvas.fillRect(4, 92, QUAD_WIDTH - 8, 22, bgColor);
-    if (p.isDead) {
+    if (resetHoldPlayer == playerIdx && resetHoldTotalMs > 0) {
+        quadCanvas.fillRoundRect(6, 92, QUAD_WIDTH - 12, 22, 3, COLOR_BLACK);
+        quadCanvas.drawRoundRect(6, 92, QUAD_WIDTH - 12, 22, 3, COLOR_DEAD_TEXT);
+
+        int32_t span = resetHoldTotalMs - 500;
+        int16_t maxFill = QUAD_WIDTH - 16;
+        int16_t fillW = 0;
+        if (span > 0 && resetHoldElapsedMs >= 500) {
+            fillW = (int16_t)(((int32_t)(resetHoldElapsedMs - 500) * maxFill) / span);
+        }
+        if (fillW > maxFill) fillW = maxFill;
+        if (fillW > 0) {
+            quadCanvas.fillRect(8, 94, fillW, 18, 0x8000); // Dark red fill
+        }
+
+        quadCanvas.setTextColor(COLOR_WHITE);
+        quadCanvas.setTextSize(1);
+        quadCanvas.setCursor(12, 99);
+        float remSec = (float)(resetHoldTotalMs - resetHoldElapsedMs) / 1000.0f;
+        if (remSec < 0.0f) remSec = 0.0f;
+        quadCanvas.printf("RESETTING P%d (%.1fs)", playerIdx + 1, remSec);
+    } else if (p.isDead) {
         quadCanvas.fillRoundRect(6, 94, QUAD_WIDTH - 12, 20, 3, COLOR_DEAD_TEXT);
         quadCanvas.setTextColor(COLOR_WHITE);
         quadCanvas.setTextSize(1);
@@ -1178,4 +1226,118 @@ void DisplayManager::updateTransientDeltas(uint32_t currentMs) {
         drawStaticLayout();
     }
 }
+
+void DisplayManager::showTableResetProgress(uint32_t elapsedMs, uint32_t resetMs, uint32_t menuMs, uint32_t currentMs) {
+    if (currentScreen != SCREEN_GAME) return;
+    if (tableResetActive && (currentMs - lastProgressRedrawMs < 40)) return;
+    lastProgressRedrawMs = currentMs;
+    tableResetActive = true;
+
+    int16_t bw = 240;
+    int16_t bh = 56;
+    int16_t bx = (SCREEN_WIDTH - bw) / 2;
+    int16_t by = (SCREEN_HEIGHT - bh) / 2;
+
+    int16_t barX = bx + 20;
+    int16_t barY = by + 26;
+    int16_t barW = bw - 40;
+    int16_t barH = 10;
+
+    tft.fillRoundRect(bx, by, bw, bh, 6, COLOR_BLACK);
+    tft.drawRoundRect(bx, by, bw, bh, 6, COLOR_DEAD_TEXT);
+    tft.drawRoundRect(bx + 1, by + 1, bw - 2, bh - 2, 5, COLOR_WHITE);
+
+    if (elapsedMs < resetMs) {
+        float remSec = (float)(resetMs - elapsedMs) / 1000.0f;
+        if (remSec < 0.0f) remSec = 0.0f;
+
+        tft.setTextColor(COLOR_DEAD_TEXT);
+        tft.setTextSize(1);
+        tft.setCursor(bx + 22, by + 10);
+        char title[40];
+        snprintf(title, sizeof(title), "HOLD TO RESET GAME (%.1fs)", remSec);
+        tft.print(title);
+
+        tft.drawRect(barX, barY, barW, barH, COLOR_DARKGREY);
+        int32_t span = resetMs - 400;
+        int16_t fillW = 0;
+        if (span > 0 && elapsedMs >= 400) {
+            fillW = (int16_t)(((int32_t)(elapsedMs - 400) * (barW - 2)) / span);
+        }
+        if (fillW > barW - 2) fillW = barW - 2;
+
+        if (fillW > 0) {
+            tft.fillRect(barX + 1, barY + 1, fillW, barH - 2, COLOR_DEAD_TEXT);
+        }
+
+        tft.setTextColor(COLOR_LIGHTGREY);
+        tft.setTextSize(1);
+        tft.setCursor(bx + 32, by + 41);
+        tft.print("Release now to cancel");
+    } else {
+        tft.setTextColor(0x07E0); // Bright emerald
+        tft.setTextSize(1);
+        tft.setCursor(bx + 16, by + 10);
+        tft.print("RELEASE: RESET GAME (40)");
+
+        tft.drawRect(barX, barY, barW, barH, COLOR_DARKGREY);
+        int32_t span = menuMs - resetMs;
+        int16_t fillW = 0;
+        if (span > 0 && elapsedMs >= resetMs) {
+            fillW = (int16_t)(((int32_t)(elapsedMs - resetMs) * (barW - 2)) / span);
+        }
+        if (fillW > barW - 2) fillW = barW - 2;
+
+        if (fillW > 0) {
+            tft.fillRect(barX + 1, barY + 1, fillW, barH - 2, COLOR_P2);
+        }
+
+        tft.setTextColor(COLOR_P2);
+        tft.setTextSize(1);
+        tft.setCursor(bx + 18, by + 41);
+        tft.print("Hold 3s for Player Menu");
+    }
+}
+
+void DisplayManager::clearTableResetProgress() {
+    if (!tableResetActive) return;
+    tableResetActive = false;
+    if (currentScreen == SCREEN_GAME) {
+        drawStaticLayout();
+        uint8_t count = state.getPlayerCount();
+        for (uint8_t i = 0; i < count; i++) {
+            renderQuadrant(i, true);
+        }
+    }
+}
+
+bool DisplayManager::isTableResetProgressActive() const {
+    return tableResetActive;
+}
+
+void DisplayManager::showPlayerResetProgress(uint8_t playerIdx, uint32_t elapsedMs, uint32_t totalMs, uint32_t currentMs) {
+    if (currentScreen != SCREEN_GAME || playerIdx >= NUM_PLAYERS) return;
+    if (resetHoldPlayer == playerIdx && (currentMs - lastPlayerProgressRedrawMs < 40)) return;
+    lastPlayerProgressRedrawMs = currentMs;
+    resetHoldPlayer = playerIdx;
+    resetHoldElapsedMs = elapsedMs;
+    resetHoldTotalMs = totalMs;
+
+    renderQuadrant(playerIdx, false);
+}
+
+void DisplayManager::clearPlayerResetProgress(uint8_t playerIdx) {
+    if (resetHoldPlayer != playerIdx) return;
+    resetHoldPlayer = 255;
+    resetHoldElapsedMs = 0;
+    resetHoldTotalMs = 0;
+    if (currentScreen == SCREEN_GAME) {
+        renderQuadrant(playerIdx, false);
+    }
+}
+
+bool DisplayManager::isPlayerResetProgressActive(uint8_t playerIdx) const {
+    return (resetHoldPlayer == playerIdx);
+}
+
 

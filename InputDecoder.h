@@ -55,6 +55,10 @@ public:
     // Reset debouncer
     void reset();
 
+    // Query hold status and elapsed duration
+    bool isPressed() const;
+    uint32_t getPressDuration(uint32_t currentMs) const;
+
 private:
     enum DebounceState {
         STATE_RELEASED,

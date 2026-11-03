@@ -12,7 +12,7 @@ This document provides the complete Bill of Materials (BOM), exact manufacturer/
 | Qty | Component | Primary Model ID / Part # | Fallback / Alternate IDs | Role in Tracker | Est. Cost (USD) |
 | :-: | :--- | :--- | :--- | :--- | :---: |
 | **1** | **ESP32 Development Board** (Pre-Soldered Pins) | `ESP32-DEVKITC-32E` / `ESP-WROOM-32` (30-pin or 38-pin DevKit V1) | `CP2102 ESP32-WROOM-32D`, `NodeMCU-32S` | Main 240 MHz dual-core MCU driving SPI graphics, interrupts, and NVS flash save | \$5.00 – \$8.00 |
-| **1** | **2.8" or 3.2" ILI9341 SPI TFT LCD** (240×320, 3.3V/5V) | `MSP2807` (2.8") / `MSP3218` (3.2") | `TJCTM24028-SPI`, Adafruit `1770` | 320×240 color tabletop display split into 2, 3, or 4 player quadrants | \$9.00 – \$15.00 |
+| **1** | **2.8" or 3.2" ILI9341 IPS SPI TFT LCD** (240×320, 3.3V/5V) | `MSP2833` (2.8" IPS) / `MSP2807` (2.8" TFT) | `MSP3226` (3.2" IPS), `MSP3218`, `TJCTM24028-SPI`, Adafruit `1770` | 320×240 color tabletop display (178° IPS viewing angle recommended) split into 2–4 player quadrants | \$10.00 – \$16.00 |
 | **4** | **KY-040 Rotary Encoder Module** (with Push Button & Knob Cap) | `KY-040` (uses `EC11` / Bourns `PEC11R-4215F-S0024` encoder) | `HW-040` | 1 per player corner: turn to adjust Life/Cmdr/Poison/Tax, click to cycle mode, hold 3s to reset player | \$6.00 – \$9.00 (4-pack) |
 | **1** | **Red Momentary Pushbutton** (Table Reset / Dice Roll) | `PBS-33B` (12mm Waterproof Panel Mount) | Omron `B3F-4055` (12×12mm Tactile Switch w/ Red Cap), Adafruit `1445` | Global table button: click to roll starting player, 2×click for Event Log, hold 1.5s reset, hold 3s player menu | \$1.00 – \$3.00 |
 | **1** | **Wiring & Interconnect Kit** | `40P-20CM-FF` (2.54mm DuPont Female-to-Female Ribbon) | ElectroCookie `Mini-PCB` or `WAGO 221-415` (5-port lever nuts) | Connects ESP32 GPIOs to display, encoders, and shared `3V3`/`GND` power rails | \$5.00 – \$8.00 |
@@ -34,16 +34,21 @@ If a specific vendor listing goes out of stock, search any electronics distribut
   * [Adafruit — ESP32 DevKitC V4 (`ADA3269`)](https://www.adafruit.com/product/3269)
   * [Amazon Search — `ESP-WROOM-32 DevKit V1 CP2102 Pre-Soldered`](https://www.amazon.com/s?k=ESP-WROOM-32+DevKit+V1+CP2102)
 
-### 2.2 Display (2.8" or 3.2" ILI9341 SPI TFT)
-* **Primary Model IDs:** `MSP2807` (2.8" SPI Red PCB) | `MSP3218` (3.2" SPI Red PCB) | `TJCTM24028-SPI` | Adafruit `1770`
+### 2.2 Display (2.8" or 3.2" ILI9341 IPS SPI TFT — Recommended for Tabletop Viewing)
+* **Primary Model IDs:**
+  * **IPS Wide-Angle Panel (Recommended):** `MSP2833` (2.8" IPS SPI) | `MSP3226` (3.2" IPS SPI) | Waveshare `2.4inch LCD Module` (`18366`)
+  * **Standard TFT Panel:** `MSP2807` (2.8" SPI Red PCB) | `MSP3218` (3.2" SPI Red PCB) | `TJCTM24028-SPI` | Adafruit `1770`
 * **Driver IC:** `ILI9341` (4-wire SPI interface, 240×320 RGB565)
+* **Why IPS over Standard TFT or OLED:**
+  * Because the tracker sits flat in the center of a Commander table and is viewed from 4 different seating directions, an **IPS (In-Plane Switching) 240×320 SPI TFT** provides OLED-like deep contrast and **178° viewing angles from all 4 sides** without color inversion, while avoiding OLED burn-in and keeping 100% compatibility with our `320×240` color UI and wiring.
 * **Key Specs Required:**
-  * Must be the **SPI version** (typically a red PCB with a 9-pin or 14-pin single-row header: `VCC`, `GND`, `CS`, `RESET`, `DC/RS`, `SDI/MOSI`, `SCK`, `LED`, `SDO/MISO`), **NOT** the 8-bit/16-bit parallel UNO shield version.
-  * Note on `RESET` and `LED` pins on physical red PCB modules: While Wokwi simulates `TFT_RST = -1` and auto-lights the backlight, on physical `MSP2807`/`TJCTM24028-SPI` modules you must tie the `LED` (backlight) pin and `RESET` pin to `3.3V` (so the screen lights up and stays out of hardware reset).
+  * Must be the **4-wire SPI version** (typically a red PCB with a 9-pin or 14-pin single-row header: `VCC`, `GND`, `CS`, `RESET`, `DC/RS`, `SDI/MOSI`, `SCK`, `LED`, `SDO/MISO`), **NOT** the 8-bit/16-bit parallel UNO shield version.
+  * Note on `RESET` and `LED` pins on physical red PCB modules: While Wokwi simulates `TFT_RST = -1` and auto-lights the backlight, on physical `MSP2833`/`MSP2807`/`TJCTM24028-SPI` modules you must tie the `LED` (backlight) pin and `RESET` pin to `3.3V` (so the screen lights up and stays out of hardware reset).
 * **Direct Links:**
+  * [LCDWiki Hardware Reference — `MSP2833` 2.8" IPS SPI Module](http://www.lcdwiki.com/2.8inch_IPS_SPI_Module_ILI9341_SKU:MSP2833)
+  * [LCDWiki Hardware Reference — `MSP2807` 2.8" Standard SPI Module](http://www.lcdwiki.com/2.8inch_SPI_Module_ILI9341_SKU:MSP2807)
   * [Adafruit — 2.8" TFT LCD with Touchscreen Breakout (`ADA1770`)](https://www.adafruit.com/product/1770)
-  * [LCDWiki Hardware Reference — `MSP2807` 2.8" ILI9341 SPI](http://www.lcdwiki.com/2.8inch_SPI_Module_ILI9341_SKU:MSP2807)
-  * [Amazon Search — `ILI9341 2.8 SPI TFT LCD 240x320 MSP2807`](https://www.amazon.com/s?k=ILI9341+2.8+SPI+TFT+LCD+240x320)
+  * [Amazon Search — `ILI9341 2.8 IPS SPI TFT LCD 240x320`](https://www.amazon.com/s?k=ILI9341+2.8+IPS+SPI+TFT+LCD+240x320)
 
 ### 2.3 Player Rotary Encoders (4× KY-040)
 * **Primary Model IDs:** `KY-040` / `HW-040` Breakout Module (uses mechanical encoder `EC11` / Bourns `PEC11R-4215F-S0024`)

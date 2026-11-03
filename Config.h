@@ -64,6 +64,8 @@
 #define TABLE_RESET_LONG_PRESS_MS   1500
 #define TABLE_MENU_LONG_PRESS_MS    3000
 #define PLAYER_RESET_LONG_PRESS_MS  3000
+#define RESET_COUNTDOWN_START_MS    400
+#define PLAYER_COUNTDOWN_START_MS   500
 #define DOUBLE_CLICK_WINDOW_MS      350
 #define DELTA_POPUP_TIMEOUT_MS      1500
 #define AUTO_RETURN_LIFE_MS         0 // Set to 0 to disable auto-return; modes stay until explicitly cycled
