@@ -73,16 +73,27 @@ When adding rules, counters, input behaviors, or menu modes, you **do not** need
 
 Run all 276 automated tests natively (runs in < 5 seconds):
 ```powershell
-# PowerShell (recommended on Windows)
+# PowerShell (interactive with pause & test report)
 .\scripts\run_tests.ps1
-```
 
-# Windows Batch CMD
+# PowerShell (non-blocking for automated runs/CI)
+.\scripts\run_tests.ps1 -NoPause
+
+# Windows Batch CMD (pauses after report)
 .\scripts\run_tests.bat
+.\scripts\run_tests.bat /nopause
 
 # Cross-platform Python
 python scripts/run_tests.py
+python scripts/run_tests.py --no-pause
 ```
+
+#### Test Execution Report & Automated Logging
+Running any of the test scripts automatically:
+1. **Compiles & executes** all 5 test targets with zero warnings.
+2. **Generates a full structured Test Execution Report** detailing assertions passed, individual suite execution times, and overall verdict.
+3. **Persists full timestamped logs** to `logs/test_run_<timestamp>.log` and `logs/test_run_latest.log` for debugging and review.
+4. **Pauses interactively** (`Press [Enter] to continue...`) in interactive terminals so you can comfortably read the report before the console closes. Use `-NoPause` (or `/nopause`, `--no-pause`) in automated workflows.
 
 #### Test Suite Breakdown
 | Suite | File | What It Tests |
