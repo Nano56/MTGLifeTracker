@@ -11,15 +11,26 @@
 static void selfTestLog(const char* format, ...) {
     va_list args;
     va_start(args, format);
-#if defined(ESP32) || defined(ARDUINO)
     char buffer[256];
     vsnprintf(buffer, sizeof(buffer), format, args);
-    Serial.print(buffer);
+    va_end(args);
+
+#if defined(ESP32) || defined(ARDUINO)
+    // Expand lone \n to \r\n to prevent diagonal stair-stepping in serial terminals
+    char outBuf[512];
+    size_t j = 0;
+    for (size_t i = 0; buffer[i] != '\0' && j < sizeof(outBuf) - 2; i++) {
+        if (buffer[i] == '\n' && (i == 0 || buffer[i - 1] != '\r')) {
+            outBuf[j++] = '\r';
+        }
+        outBuf[j++] = buffer[i];
+    }
+    outBuf[j] = '\0';
+    Serial.print(outBuf);
 #else
-    vprintf(format, args);
+    printf("%s", buffer);
     fflush(stdout);
 #endif
-    va_end(args);
 }
 
 DisplayManager::DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, EventLog& logRef)
@@ -46,10 +57,18 @@ void DisplayManager::begin(bool restoreMatch) {
         startSelfTest(0);
 #else
         returnToGameScreen();
-        selfTestLog("[SYS] Ready. %d Players @ %d Life.\n", state.getPlayerCount(), STARTING_LIFE);
-        selfTestLog("[SYS] Turn knob: +/- Counter | Click knob: Cycle Mode | Double-click: Return to Life\n");
-        selfTestLog("[SYS] Hold knob (3s): Reset Player | Red Button: Click to Roll | Double-click: Event Log\n");
-        selfTestLog("[SYS] Hold Red Button (1.5s): Reset Game | Hold Red Button (3s): Player Count Setup (2-4P)\n\n");
+        selfTestLog("[SYS] Tabletop Ready: %d Players @ %d Life.\r\n", state.getPlayerCount(), STARTING_LIFE);
+        selfTestLog("[SYS]\r\n");
+        selfTestLog("[SYS] --- Quick Controls Guide ---\r\n");
+        selfTestLog("[SYS]   Knob Turn    : Adjust Life / Counter\r\n");
+        selfTestLog("[SYS]   Knob Click   : Cycle Mode (Life/CMDR/Psn/Tax)\r\n");
+        selfTestLog("[SYS]   Knob 2xClick : Instant Return to Life Mode\r\n");
+        selfTestLog("[SYS]   Knob Hold 3s : Reset Player (40 Life)\r\n");
+        selfTestLog("[SYS]   Red Button   : Roll Starting Player\r\n");
+        selfTestLog("[SYS]   Red 2xClick  : Toggle Match Event Log\r\n");
+        selfTestLog("[SYS]   Red Hold 1.5s: Full Game Reset\r\n");
+        selfTestLog("[SYS]   Red Hold 3s  : Player Count Menu (2-4P)\r\n");
+        selfTestLog("==================================================\r\n\r\n");
 #endif
     }
 }
@@ -807,24 +826,31 @@ void DisplayManager::startSelfTest(uint32_t currentMs) {
     selfTestStep = TEST_STEP_SPLASH;
     selfTestStepStartTime = currentMs;
 
-    selfTestLog("\n[TEST] ========================================================\n");
-    selfTestLog("[TEST]    STARTUP HARDWARE & APP FUNCTIONALITY SELF-TEST\n");
-    selfTestLog("[TEST] ========================================================\n");
-    selfTestLog("[TEST] Initiating visual rendering & logic test sequence...\n");
-    selfTestLog("[TEST] Turn or click any knob at any time to skip.\n");
-    selfTestLog("[TEST] --------------------------------------------------------\n");
+    selfTestLog("\r\n--------------------------------------------------\r\n");
+    selfTestLog("  STARTUP HARDWARE & APP FUNCTIONALITY SELF-TEST  \r\n");
+    selfTestLog("--------------------------------------------------\r\n");
+    selfTestLog("  Initiating visual display & rules verification...\r\n");
+    selfTestLog("  (Turn or click any knob to skip directly to game)\r\n");
+    selfTestLog("--------------------------------------------------\r\n");
 
     runSelfTestStep(TEST_STEP_SPLASH, currentMs);
 }
 
 void DisplayManager::skipSelfTest(uint32_t currentMs) {
     if (isSelfTestRunning()) {
-        selfTestLog("[TEST] [SKIP] Startup self-test aborted by user input at Step [%d/9].\n", (int)selfTestStep);
-        selfTestLog("[SYS] Initializing clean match...\n");
-        selfTestLog("[SYS] Tabletop Ready: 4 Players @ 40 Life.\n");
-        selfTestLog("[SYS] Turn knob: +/- Counter | Click knob: Cycle Mode | Double-click: Return to Life\n");
-        selfTestLog("[SYS] Hold knob (3s): Reset Player | Red Button: Click to Roll | Double-click: Event Log\n");
-        selfTestLog("[SYS] Hold Red Button (1.5s): Reset Game | Hold Red Button (3s): Player Count Setup (2-4P)\n\n");
+        selfTestLog("\r\n[TEST] [SKIP] Self-test skipped at step [%d/9] by user.\r\n", (int)selfTestStep);
+        selfTestLog("[SYS] Tabletop Ready: 4 Players @ 40 Life.\r\n");
+        selfTestLog("[SYS]\r\n");
+        selfTestLog("[SYS] --- Quick Controls Guide ---\r\n");
+        selfTestLog("[SYS]   Knob Turn    : Adjust Life / Counter\r\n");
+        selfTestLog("[SYS]   Knob Click   : Cycle Mode (Life/CMDR/Psn/Tax)\r\n");
+        selfTestLog("[SYS]   Knob 2xClick : Instant Return to Life Mode\r\n");
+        selfTestLog("[SYS]   Knob Hold 3s : Reset Player (40 Life)\r\n");
+        selfTestLog("[SYS]   Red Button   : Roll Starting Player\r\n");
+        selfTestLog("[SYS]   Red 2xClick  : Toggle Match Event Log\r\n");
+        selfTestLog("[SYS]   Red Hold 1.5s: Full Game Reset\r\n");
+        selfTestLog("[SYS]   Red Hold 3s  : Player Count Menu (2-4P)\r\n");
+        selfTestLog("==================================================\r\n\r\n");
     }
     selfTestStep = TEST_STEP_NONE;
     state.setPlayerCount(DEFAULT_PLAYER_COUNT, currentMs);
@@ -892,37 +918,29 @@ void DisplayManager::drawSelfTestSplash() {
 void DisplayManager::runSelfTestStep(SelfTestStep step, uint32_t currentMs) {
     switch (step) {
         case TEST_STEP_SPLASH:
-            selfTestLog("[TEST] [1/9] Color Palette & Hardware Splash Screen...\n");
-            selfTestLog("[TEST]        Validating RGB565 primary colors: P1 Red, P2 Cyan, P3 Green, P4 Gold\n");
             drawSelfTestSplash();
-            selfTestLog("[TEST]        -> [PASS] Hardware splash & palette rendered cleanly\n");
+            selfTestLog("  [1/9] Color Palette & Splash Screen ........ [PASS]\r\n");
             break;
 
         case TEST_STEP_4P_LAYOUT:
-            selfTestLog("[TEST] [2/9] 4-Player Tabletop Layout & 180-deg Mirroring...\n");
-            selfTestLog("[TEST]        Configuring 4 quadrants (160x120) with Top Half inverted 180-deg\n");
             state.setPlayerCount(4, currentMs);
             returnToGameScreen();
             currentScreen = SCREEN_SELF_TEST;
-            selfTestLog("[TEST]        -> [PASS] 4-Quadrant mirrored layout active\n");
+            selfTestLog("  [2/9] 4-Player Tabletop Layout (180° Mirror) [PASS]\r\n");
             break;
 
         case TEST_STEP_COUNTERS:
-            selfTestLog("[TEST] [3/9] Multi-Mode Counters & Real-Time Sync...\n");
             // P1 Life adjustment: -5
             state.applyDelta(0, -5, currentMs);
-            selfTestLog("[TEST]        P1: Life -5 (Life 35)\n");
             // P2 takes 5 commander damage from P1
             state.cycleMode(1, currentMs);
             state.applyDelta(1, 5, currentMs);
-            selfTestLog("[TEST]        P2: CMDR dmg from P1 +5 (Life synced to 35)\n");
             // P3 takes 3 poison
             state.cycleMode(2, currentMs);
             state.cycleMode(2, currentMs);
             state.cycleMode(2, currentMs);
             state.cycleMode(2, currentMs);
             state.applyDelta(2, 3, currentMs);
-            selfTestLog("[TEST]        P3: Poison +3 counters\n");
             // P4 increments Commander Tax
             state.cycleMode(3, currentMs);
             state.cycleMode(3, currentMs);
@@ -930,65 +948,51 @@ void DisplayManager::runSelfTestStep(SelfTestStep step, uint32_t currentMs) {
             state.cycleMode(3, currentMs);
             state.cycleMode(3, currentMs);
             state.applyDelta(3, 1, currentMs);
-            selfTestLog("[TEST]        P4: Commander Tax +1 cast (+2 mana)\n");
             updateDirtyQuadrants();
-            selfTestLog("[TEST]        -> [PASS] Live counter adjustments and SPI blits verified\n");
+            selfTestLog("  [3/9] Multi-Mode Counters (Life, CMDR, Psn)  [PASS]\r\n");
             break;
 
         case TEST_STEP_LETHAL:
-            selfTestLog("[TEST] [4/9] Lethal Condition Verification...\n");
             // P3 reaches 10 poison -> LETHAL
             state.applyDelta(2, 7, currentMs);
-            selfTestLog("[TEST]        P3: Poison +7 (10 total) -> ELIMINATED [POISON LETHAL]\n");
             // P2 takes 21 commander damage from P1 -> LETHAL
             state.applyDelta(1, 16, currentMs);
-            selfTestLog("[TEST]        P2: CMDR dmg +16 (21 total from P1) -> ELIMINATED [COMMANDER LETHAL]\n");
             updateDirtyQuadrants();
-            selfTestLog("[TEST]        -> [PASS] Lethal state transitions & skull banners confirmed\n");
+            selfTestLog("  [4/9] Lethal Condition Elimination Alerts .. [PASS]\r\n");
             break;
 
         case TEST_STEP_EVENT_LOG:
-            selfTestLog("[TEST] [5/9] Real-Time Event Log Inspection Screen...\n");
-            selfTestLog("[TEST]        Switching display to 50-item circular ring buffer log\n");
             drawEventLog();
             currentScreen = SCREEN_SELF_TEST;
-            selfTestLog("[TEST]        -> [PASS] Event log screen rendered cleanly\n");
+            selfTestLog("  [5/9] Real-Time 50-Entry Event Log Screen .. [PASS]\r\n");
             break;
 
         case TEST_STEP_3P_LAYOUT:
-            selfTestLog("[TEST] [6/9] Dynamic 3-Player Tabletop Layout...\n");
-            selfTestLog("[TEST]        1 wide top half (P1, 320x120, 180-deg inverted) + 2 bottom quads\n");
             state.setPlayerCount(3, currentMs);
             returnToGameScreen();
             currentScreen = SCREEN_SELF_TEST;
-            selfTestLog("[TEST]        -> [PASS] 3-Player dynamic layout verified\n");
+            selfTestLog("  [6/9] Dynamic 3-Player Tabletop Layout ..... [PASS]\r\n");
             break;
 
         case TEST_STEP_2P_LAYOUT:
-            selfTestLog("[TEST] [7/9] Dynamic 2-Player Split-Screen Layout...\n");
-            selfTestLog("[TEST]        1v1 Duel Mode: Two wide 320x120 split halves (P1 inverted, P2 normal)\n");
             state.setPlayerCount(2, currentMs);
             returnToGameScreen();
             currentScreen = SCREEN_SELF_TEST;
-            selfTestLog("[TEST]        -> [PASS] 2-Player duel split-screen verified\n");
+            selfTestLog("  [7/9] Dynamic 2-Player Split-Screen Layout . [PASS]\r\n");
             break;
 
         case TEST_STEP_PLAYER_SELECT:
-            selfTestLog("[TEST] [8/9] Player Count Setup Menu Demonstration...\n");
-            selfTestLog("[TEST]        Rendering interactive 2P / 3P / 4P player selection menu\n");
             openPlayerSelectScreen();
             currentScreen = SCREEN_SELF_TEST;
-            selfTestLog("[TEST]        -> [PASS] Setup menu UI active\n");
+            selfTestLog("  [8/9] Player Count Setup Menu (2P/3P/4P) ... [PASS]\r\n");
             break;
 
         case TEST_STEP_ROLL_ANIMATION:
-            selfTestLog("[TEST] [9/9] First-Player Roll Roulette Animation...\n");
-            selfTestLog("[TEST]        Running animated indicator wheel and winner celebration banner\n");
             state.setPlayerCount(4, currentMs);
             returnToGameScreen();
             startRollAnimation(0, currentMs);
             currentScreen = SCREEN_SELF_TEST;
-            selfTestLog("[TEST]        -> [PASS] Roll roulette animation active\n");
+            selfTestLog("  [9/9] First-Player Roll Roulette & Banner .. [PASS]\r\n");
             break;
 
         case TEST_STEP_DONE:
@@ -1013,23 +1017,30 @@ bool DisplayManager::updateSelfTest(uint32_t currentMs) {
         selfTestStepStartTime = currentMs;
 
         if (selfTestStep >= TEST_STEP_DONE) {
-            selfTestLog("[TEST] ========================================================\n");
-            selfTestLog("[TEST]                 STARTUP SELF-TEST REPORT               \n");
-            selfTestLog("[TEST] ========================================================\n");
-            selfTestLog("[TEST]   Checks Executed : 9 / 9 (100%% Passed)\n");
-            selfTestLog("[TEST]   Visual Hardware : ILI9341 SPI (320x240), GFXcanvas16 Blitter\n");
-            selfTestLog("[TEST]   Layout Engines  : 4-Player Pod, 3-Player Triangle, 2-Player Duel\n");
-            selfTestLog("[TEST]   Rules Engine    : Life Sync, Commander Damage, Poison, Tax, Lethal\n");
-            selfTestLog("[TEST]   Overall Verdict : [PASS] ALL STARTUP VISUAL & LOGIC CHECKS PASSED\n");
-            selfTestLog("[TEST] ========================================================\n");
-            selfTestLog("[SYS] Initializing clean match...\n");
+            selfTestLog("--------------------------------------------------\r\n");
+            selfTestLog("              STARTUP SELF-TEST REPORT            \r\n");
+            selfTestLog("--------------------------------------------------\r\n");
+            selfTestLog("  Checks Executed : 9 / 9 (100%% Passed)\r\n");
+            selfTestLog("  Display Driver  : ILI9341 SPI (320x240)\r\n");
+            selfTestLog("  Tabletop Engine : Mirrored Canvas (2P/3P/4P)\r\n");
+            selfTestLog("  Rules Engine    : Life, CMDR, Poison, Tax, Lethal\r\n");
+            selfTestLog("  Overall Verdict : [PASS] ALL CHECKS PASSED\r\n");
+            selfTestLog("--------------------------------------------------\r\n");
             selfTestStep = TEST_STEP_NONE;
             state.setPlayerCount(DEFAULT_PLAYER_COUNT, currentMs);
             returnToGameScreen();
-            selfTestLog("[SYS] Tabletop Ready: 4 Players @ 40 Life.\n");
-            selfTestLog("[SYS] Turn knob: +/- Counter | Click knob: Cycle Mode | Double-click: Return to Life\n");
-            selfTestLog("[SYS] Hold knob (3s): Reset Player | Red Button: Click to Roll | Double-click: Event Log\n");
-            selfTestLog("[SYS] Hold Red Button (1.5s): Reset Game | Hold Red Button (3s): Player Count Setup (2-4P)\n\n");
+            selfTestLog("[SYS] Tabletop Ready: 4 Players @ 40 Life.\r\n");
+            selfTestLog("[SYS]\r\n");
+            selfTestLog("[SYS] --- Quick Controls Guide ---\r\n");
+            selfTestLog("[SYS]   Knob Turn    : Adjust Life / Counter\r\n");
+            selfTestLog("[SYS]   Knob Click   : Cycle Mode (Life/CMDR/Psn/Tax)\r\n");
+            selfTestLog("[SYS]   Knob 2xClick : Instant Return to Life Mode\r\n");
+            selfTestLog("[SYS]   Knob Hold 3s : Reset Player (40 Life)\r\n");
+            selfTestLog("[SYS]   Red Button   : Roll Starting Player\r\n");
+            selfTestLog("[SYS]   Red 2xClick  : Toggle Match Event Log\r\n");
+            selfTestLog("[SYS]   Red Hold 1.5s: Full Game Reset\r\n");
+            selfTestLog("[SYS]   Red Hold 3s  : Player Count Menu (2-4P)\r\n");
+            selfTestLog("==================================================\r\n\r\n");
             return false;
         } else {
             runSelfTestStep(selfTestStep, currentMs);

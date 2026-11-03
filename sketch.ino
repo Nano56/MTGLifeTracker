@@ -31,13 +31,34 @@ RotaryDecoder   rotaryDecoders[NUM_PLAYERS];
 ButtonDebouncer rotaryButtons[NUM_PLAYERS];
 ButtonDebouncer tableButton;
 
+// Helper function to print clean serial logs with automatic CRLF expansion
+static void sysLog(const char* format, ...) {
+  char buf[256];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf), format, args);
+  va_end(args);
+
+  // Expand lone \n to \r\n to prevent diagonal stair-stepping in serial terminals
+  char outBuf[512];
+  size_t j = 0;
+  for (size_t i = 0; buf[i] != '\0' && j < sizeof(outBuf) - 2; i++) {
+    if (buf[i] == '\n' && (i == 0 || buf[i - 1] != '\r')) {
+      outBuf[j++] = '\r';
+    }
+    outBuf[j++] = buf[i];
+  }
+  outBuf[j] = '\0';
+  Serial.print(outBuf);
+}
+
 void setup() {
   Serial.begin(115200);
   delay(150);
   
-  Serial.println("\n==================================================");
-  Serial.println("  MTG COMMANDER LIFE TRACKER - FIRMWARE v1.0");
-  Serial.println("==================================================");
+  sysLog("\r\n==================================================\r\n");
+  sysLog("  MTG COMMANDER LIFE TRACKER - FIRMWARE v1.0\r\n");
+  sysLog("==================================================\r\n");
 
   // Configure rotary encoder pins (active-low)
   for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
@@ -67,12 +88,20 @@ void setup() {
   bool matchRestored = false;
   if (persistence.hasSavedMatch() && persistence.loadMatch()) {
     matchRestored = true;
-    Serial.printf("[SYS] *** Active Match Restored from Flash: %d Players ***\n", gameState.getPlayerCount());
-    Serial.println("[SYS] Startup self-test bypassed (resuming active game).");
-    Serial.printf("[SYS] Ready. %d Players @ %d Life.\n", gameState.getPlayerCount(), STARTING_LIFE);
-    Serial.println("[SYS] Turn knob: +/- Counter | Click knob: Cycle Mode | Double-click: Return to Life");
-    Serial.println("[SYS] Hold knob (3s): Reset Player | Red Button: Click to Roll | Double-click: Event Log");
-    Serial.println("[SYS] Hold Red Button (1.5s): Reset Game | Hold Red Button (3s): Player Count Setup (2-4P)\n");
+    sysLog("[SYS] *** Active Match Restored from Flash: %d Players ***\r\n", gameState.getPlayerCount());
+    sysLog("[SYS] Startup self-test bypassed (resuming active game).\r\n");
+    sysLog("[SYS] Tabletop Ready: %d Players @ %d Life.\r\n", gameState.getPlayerCount(), STARTING_LIFE);
+    sysLog("[SYS]\r\n");
+    sysLog("[SYS] --- Quick Controls Guide ---\r\n");
+    sysLog("[SYS]   Knob Turn    : Adjust Life / Counter\r\n");
+    sysLog("[SYS]   Knob Click   : Cycle Mode (Life/CMDR/Psn/Tax)\r\n");
+    sysLog("[SYS]   Knob 2xClick : Instant Return to Life Mode\r\n");
+    sysLog("[SYS]   Knob Hold 3s : Reset Player (40 Life)\r\n");
+    sysLog("[SYS]   Red Button   : Roll Starting Player\r\n");
+    sysLog("[SYS]   Red 2xClick  : Toggle Match Event Log\r\n");
+    sysLog("[SYS]   Red Hold 1.5s: Full Game Reset\r\n");
+    sysLog("[SYS]   Red Hold 3s  : Player Count Menu (2-4P)\r\n");
+    sysLog("==================================================\r\n\r\n");
   }
 
   // Initialize display and render layout (bypasses self-test if match was restored)
@@ -182,7 +211,7 @@ void loop() {
       if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
         displayMgr.confirmPlayerSelect(currentMs);
         persistence.markDirty(currentMs);
-        Serial.printf("[SYS] Confirmed %d Players\n", gameState.getPlayerCount());
+        sysLog("[SYS] Confirmed %d Players\r\n", gameState.getPlayerCount());
         continue;
       }
 
@@ -194,9 +223,9 @@ void loop() {
       controller.dispatchAction(targetP, ACT_CYCLE_MODE, currentMs);
       const PlayerState& p = gameState.getPlayer(targetP);
       if (p.activeMode == MODE_CMDR) {
-        Serial.printf("[SYS] P%d switched mode to CMDR (Source P%d)\n", targetP + 1, p.cmdrSource + 1);
+        sysLog("[SYS] P%d switched mode to CMDR (Source P%d)\r\n", targetP + 1, p.cmdrSource + 1);
       } else {
-        Serial.printf("[SYS] P%d switched mode to %s\n", targetP + 1, GameState::getModeName(p.activeMode));
+        sysLog("[SYS] P%d switched mode to %s\r\n", targetP + 1, GameState::getModeName(p.activeMode));
       }
     } else if (swEvt == BTN_EVENT_DOUBLE_CLICK) {
       if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
@@ -209,7 +238,7 @@ void loop() {
       }
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
       controller.dispatchAction(targetP, ACT_RETURN_TO_LIFE, currentMs);
-      Serial.printf("[SYS] P%d returned to LIFE mode\n", targetP + 1);
+      sysLog("[SYS] P%d returned to LIFE mode\r\n", targetP + 1);
     } else if (swEvt == BTN_EVENT_LONG_PRESS) {
       if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
         continue;
@@ -220,7 +249,7 @@ void loop() {
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
       controller.dispatchAction(targetP, ACT_RESET_PLAYER, currentMs);
       persistence.markDirty(currentMs);
-      Serial.printf("[SYS] P%d reset to %d life\n", targetP + 1, STARTING_LIFE);
+      sysLog("[SYS] P%d reset to %d life\r\n", targetP + 1, STARTING_LIFE);
     }
   }
 
@@ -234,7 +263,7 @@ void loop() {
     if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
       displayMgr.confirmPlayerSelect(currentMs);
       persistence.markDirty(currentMs);
-      Serial.printf("[SYS] Confirmed %d Players\n", gameState.getPlayerCount());
+      sysLog("[SYS] Confirmed %d Players\r\n", gameState.getPlayerCount());
     } else if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
       // Exit event log view back to game screen
       displayMgr.returnToGameScreen();
@@ -243,13 +272,13 @@ void loop() {
       uint8_t winner = controller.rollStartingPlayer(currentMs, random(0, 1000));
       displayMgr.startRollAnimation(winner, currentMs);
 
-      Serial.printf("\n[SYS] *** First Player Roll: P%d Goes First! ***\n\n", winner + 1);
+      sysLog("\r\n[SYS] *** First Player Roll: P%d Goes First! ***\r\n\r\n", winner + 1);
     }
   } else if (rstEvt == BTN_EVENT_DOUBLE_CLICK) {
     if (displayMgr.getScreenMode() != SCREEN_PLAYER_SELECT) {
       // Double click toggles Event Log screen
       displayMgr.toggleEventLogScreen();
-      Serial.println("[SYS] Toggled Match Event Log screen");
+      sysLog("[SYS] Toggled Match Event Log screen\r\n");
     }
   } else if (rstEvt == BTN_EVENT_LONG_PRESS) {
     if (displayMgr.getScreenMode() != SCREEN_PLAYER_SELECT) {
@@ -257,13 +286,13 @@ void loop() {
       controller.dispatchAction(0, ACT_RESET_GAME, currentMs);
       displayMgr.returnToGameScreen();
       persistence.clearStorage();
-      Serial.printf("\n[SYS] === FULL GAME RESET: All %d players reset to %d Life ===\n\n",
-                    gameState.getPlayerCount(), STARTING_LIFE);
+      sysLog("\r\n[SYS] === FULL GAME RESET: All %d players reset to %d Life ===\r\n\r\n",
+             gameState.getPlayerCount(), STARTING_LIFE);
     }
   } else if (rstEvt == BTN_EVENT_VERY_LONG_PRESS) {
     // 3.0s hold enters Player Count Setup screen
     displayMgr.openPlayerSelectScreen();
-    Serial.println("[SYS] Entered Player Count Setup menu (2, 3, or 4 Players)");
+    sysLog("[SYS] Entered Player Count Setup menu (2, 3, or 4 Players)\r\n");
   }
 
   // -------------------------------------------------------------
@@ -271,7 +300,7 @@ void loop() {
   // -------------------------------------------------------------
   controller.tick(currentMs);
   if (persistence.tick(currentMs)) {
-    Serial.println("[SYS] Match state auto-saved to Flash (NVS).");
+    sysLog("[SYS] Match state auto-saved to Flash (NVS).\r\n");
   }
 
   // -------------------------------------------------------------
