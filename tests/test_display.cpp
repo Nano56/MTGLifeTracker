@@ -163,6 +163,34 @@ int main() {
     TEST_ASSERT(display.isToastActive() == false);
     printf("  [PASS] Toast banner lifecycle and 1500ms duration verified\n");
 
+    // 12. Event Log Scrolling (L11 fix)
+    for (int e = 0; e < 20; e++) {
+        log.log(25000 + e * 100, 0, EVT_LIFE_CHANGE, 1, 28 + e);
+    }
+    TEST_ASSERT(log.getCount() >= 20);
+
+    display.toggleEventLogScreen();
+    TEST_ASSERT(display.getScreenMode() == SCREEN_EVENT_LOG);
+    TEST_ASSERT(display.getLogScrollOffset() == 0); // Starts at newest events
+
+    // Scroll older by 4 events
+    display.scrollEventLog(4);
+    TEST_ASSERT(display.getLogScrollOffset() == 4);
+
+    // Scroll past maximum offset (total - 8)
+    uint16_t totalEvents = log.getCount();
+    uint16_t maxExpectedOffset = totalEvents - 8;
+    display.scrollEventLog(100);
+    TEST_ASSERT(display.getLogScrollOffset() == maxExpectedOffset);
+
+    // Scroll back past newest (0)
+    display.scrollEventLog(-100);
+    TEST_ASSERT(display.getLogScrollOffset() == 0);
+
+    display.returnToGameScreen();
+    TEST_ASSERT(display.getScreenMode() == SCREEN_GAME);
+    printf("  [PASS] Event log scrolling bounds and window offset verified\n");
+
     printf(">>> test_display: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }

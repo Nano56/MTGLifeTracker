@@ -223,7 +223,8 @@ void loop() {
       }
 
       if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
-        displayMgr.returnToGameScreen();
+        displayMgr.scrollEventLog(delta > 0 ? 1 : -1);
+        continue;
       }
 
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
@@ -259,6 +260,7 @@ void loop() {
 
       if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
         displayMgr.returnToGameScreen();
+        continue;
       }
 
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
@@ -277,6 +279,7 @@ void loop() {
       }
       if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
         displayMgr.returnToGameScreen();
+        continue;
       }
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
       controller.dispatchAction(targetP, ACT_RETURN_TO_LIFE, currentMs);
@@ -287,6 +290,7 @@ void loop() {
       }
       if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
         displayMgr.returnToGameScreen();
+        continue;
       }
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
       controller.dispatchAction(targetP, ACT_RESET_PLAYER, currentMs);

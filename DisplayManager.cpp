@@ -35,7 +35,7 @@ static void selfTestLog(const char* format, ...) {
 
 DisplayManager::DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, EventLog& logRef)
     : tft(tftRef), state(stateRef), log(logRef), quadCanvas(QUAD_WIDTH, QUAD_HEIGHT),
-      currentScreen(SCREEN_GAME), menuPlayerCount(DEFAULT_PLAYER_COUNT),
+      currentScreen(SCREEN_GAME), menuPlayerCount(DEFAULT_PLAYER_COUNT), logScrollOffset(0),
       toastActive(false), toastStartTime(0),
       selfTestStep(TEST_STEP_NONE), selfTestStepStartTime(0),
       rollWinner(0), animStartTime(0), lastAnimTick(0),
@@ -593,10 +593,27 @@ void DisplayManager::updateDirtyQuadrants() {
 void DisplayManager::toggleEventLogScreen() {
     if (currentScreen == SCREEN_GAME) {
         currentScreen = SCREEN_EVENT_LOG;
+        logScrollOffset = 0;
         drawEventLog();
     } else {
         returnToGameScreen();
     }
+}
+
+void DisplayManager::scrollEventLog(int8_t step) {
+    uint16_t total = log.getCount();
+    uint16_t maxOffset = (total > 8) ? (total - 8) : 0;
+    int32_t newOffset = (int32_t)logScrollOffset + step;
+    if (newOffset < 0) newOffset = 0;
+    if (newOffset > maxOffset) newOffset = maxOffset;
+    if ((uint16_t)newOffset != logScrollOffset) {
+        logScrollOffset = (uint16_t)newOffset;
+        drawEventLog();
+    }
+}
+
+uint16_t DisplayManager::getLogScrollOffset() const {
+    return logScrollOffset;
 }
 
 ScreenMode DisplayManager::getScreenMode() const {
@@ -682,30 +699,39 @@ void DisplayManager::drawPlayerSelectMenu() {
 void DisplayManager::drawEventLog() {
     tft.fillScreen(COLOR_BLACK);
 
+    uint16_t totalEvents = log.getCount();
+
     // Title Header
     tft.fillRect(0, 0, SCREEN_WIDTH, 26, COLOR_DARKGREY);
     tft.drawFastHLine(0, 26, SCREEN_WIDTH, COLOR_WHITE);
     tft.setTextColor(COLOR_WHITE);
     tft.setTextSize(2);
-    tft.setCursor(55, 6);
-    tft.print("MATCH EVENT LOG");
+    tft.setCursor(20, 6);
+    if (totalEvents > 0) {
+        uint16_t viewStart = logScrollOffset + 1;
+        uint16_t viewEnd = (totalEvents < 8) ? totalEvents : (logScrollOffset + 8);
+        if (viewEnd > totalEvents) viewEnd = totalEvents;
+        tft.printf("EVENT LOG (%u-%u of %u)", (unsigned)viewStart, (unsigned)viewEnd, (unsigned)totalEvents);
+    } else {
+        tft.print("MATCH EVENT LOG");
+    }
 
-    // Print recent events
-    uint16_t count = log.getCount();
+    // Print events for current scroll window
     int16_t startY = 36;
     uint8_t maxToDisplay = 8;
     uint8_t displayed = 0;
 
     tft.setTextSize(1);
-    if (count == 0) {
+    if (totalEvents == 0) {
         tft.setTextColor(COLOR_LIGHTGREY);
         tft.setCursor(40, 100);
         tft.print("No events recorded yet.");
     } else {
-        // Display newest events first
-        for (int i = (int)count - 1; i >= 0 && displayed < maxToDisplay; i--, displayed++) {
+        // Calculate starting index based on scroll offset (0 = newest)
+        int32_t startIdx = (int32_t)totalEvents - 1 - logScrollOffset;
+        for (int32_t i = startIdx; i >= 0 && displayed < maxToDisplay; i--, displayed++) {
             GameEvent evt;
-            if (log.getEvent(i, evt)) {
+            if (log.getEvent((uint16_t)i, evt)) {
                 char str[64];
                 EventLog::formatEvent(evt, str, sizeof(str));
 
@@ -713,12 +739,26 @@ void DisplayManager::drawEventLog() {
                 if (evt.player < state.getPlayerCount()) {
                     color = getPlayerColor(evt.player);
                 } else {
-                    color = COLOR_P4; // Yellow for system
+                    color = COLOR_P4; // Gold for system
                 }
                 tft.setTextColor(color);
                 tft.setCursor(15, startY + (displayed * 18));
                 tft.print(str);
             }
+        }
+
+        // Draw scrollbar indicator on the right edge if more than 8 events exist
+        if (totalEvents > 8) {
+            int16_t barX = SCREEN_WIDTH - 6;
+            int16_t barTotalH = 160;
+            int16_t barY = startY;
+            tft.drawFastVLine(barX, barY, barTotalH, COLOR_DARKGREY);
+
+            uint16_t maxOffset = totalEvents - 8;
+            int16_t thumbH = (8 * barTotalH) / totalEvents;
+            if (thumbH < 12) thumbH = 12;
+            int16_t thumbY = barY + (int16_t)(((int32_t)logScrollOffset * (barTotalH - thumbH)) / maxOffset);
+            tft.fillRect(barX - 1, thumbY, 3, thumbH, COLOR_WHITE);
         }
     }
 
@@ -726,8 +766,8 @@ void DisplayManager::drawEventLog() {
     tft.drawFastHLine(0, 215, SCREEN_WIDTH, COLOR_DARKGREY);
     tft.setTextColor(COLOR_LIGHTGREY);
     tft.setTextSize(1);
-    tft.setCursor(50, 222);
-    tft.print("[ Click Reset button to return ]");
+    tft.setCursor(25, 222);
+    tft.print("Turn knob: Scroll  |  Click knob or button: Return");
 }
 
 void DisplayManager::startRollAnimation(uint8_t winningPlayer, uint32_t currentMs) {

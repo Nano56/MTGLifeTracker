@@ -33,8 +33,6 @@ void GameState::setPlayerCount(uint8_t count, uint32_t currentMs) {
 void GameState::resetAll(uint32_t currentMs) {
     log.clear();
     for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
-        if (i >= NUM_PLAYERS) return;
-
         PlayerState& p = players[i];
         p.life = STARTING_LIFE;
         p.poison = 0;
@@ -227,7 +225,7 @@ void GameState::returnToLife(uint8_t playerIdx, uint32_t currentMs) {
 bool GameState::checkAutoReturn(uint32_t currentMs) {
 #if AUTO_RETURN_LIFE_MS > 0
     bool anyChanged = false;
-    for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+    for (uint8_t i = 0; i < playerCount; i++) {
         PlayerState& p = players[i];
         if (p.activeMode != MODE_LIFE) {
             if (currentMs - p.modeTimestamp >= AUTO_RETURN_LIFE_MS) {

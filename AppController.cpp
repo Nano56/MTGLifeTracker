@@ -33,6 +33,9 @@ bool AppController::dispatchAction(uint8_t playerIdx, HIDAction action, uint32_t
             return true;
         }
 
+        case ACT_TOGGLE_LOG:
+            return true;
+
         default:
             return false;
     }

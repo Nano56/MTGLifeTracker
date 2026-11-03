@@ -58,6 +58,8 @@ public:
 
     // Toggle between game screen and event log screen
     void toggleEventLogScreen();
+    void scrollEventLog(int8_t step);
+    uint16_t getLogScrollOffset() const;
 
     // Player Count Setup Menu
     void openPlayerSelectScreen();
@@ -89,6 +91,7 @@ private:
 
     ScreenMode currentScreen;
     uint8_t menuPlayerCount;
+    uint16_t logScrollOffset;
     bool lastRenderedDead[NUM_PLAYERS];
 
     // Toast Banner state
