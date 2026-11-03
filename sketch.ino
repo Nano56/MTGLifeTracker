@@ -31,6 +31,21 @@ RotaryDecoder   rotaryDecoders[NUM_PLAYERS];
 ButtonDebouncer rotaryButtons[NUM_PLAYERS];
 ButtonDebouncer tableButton;
 
+#if defined(ESP32) || defined(ARDUINO)
+static void IRAM_ATTR encoderIsr0() {
+  rotaryDecoders[0].update(digitalRead(P1_CLK) == HIGH, digitalRead(P1_DT) == HIGH);
+}
+static void IRAM_ATTR encoderIsr1() {
+  rotaryDecoders[1].update(digitalRead(P2_CLK) == HIGH, digitalRead(P2_DT) == HIGH);
+}
+static void IRAM_ATTR encoderIsr2() {
+  rotaryDecoders[2].update(digitalRead(P3_CLK) == HIGH, digitalRead(P3_DT) == HIGH);
+}
+static void IRAM_ATTR encoderIsr3() {
+  rotaryDecoders[3].update(digitalRead(P4_CLK) == HIGH, digitalRead(P4_DT) == HIGH);
+}
+#endif
+
 // Helper function to print clean serial logs with automatic CRLF expansion
 static void sysLog(const char* format, ...) {
   char buf[256];
@@ -50,6 +65,20 @@ static void sysLog(const char* format, ...) {
   }
   outBuf[j] = '\0';
   Serial.print(outBuf);
+}
+
+static void printQuickControlsGuide() {
+  sysLog("[SYS]\r\n");
+  sysLog("[SYS] --- Quick Controls Guide ---\r\n");
+  sysLog("[SYS]   Knob Turn    : Adjust Life / Counter\r\n");
+  sysLog("[SYS]   Knob Click   : Cycle Mode (Life/CMDR/Psn/Tax)\r\n");
+  sysLog("[SYS]   Knob 2xClick : Instant Return to Life Mode\r\n");
+  sysLog("[SYS]   Knob Hold 3s : Reset Player (%d Life)\r\n", STARTING_LIFE);
+  sysLog("[SYS]   Red Button   : Roll Starting Player\r\n");
+  sysLog("[SYS]   Red 2xClick  : Toggle Match Event Log\r\n");
+  sysLog("[SYS]   Red Hold 1.5s: Full Game Reset\r\n");
+  sysLog("[SYS]   Red Hold 3s  : Player Count Menu (2-4P)\r\n");
+  sysLog("==================================================\r\n\r\n");
 }
 
 void setup() {
@@ -75,10 +104,18 @@ void setup() {
     rotaryButtons[i].setLongPressMs(PLAYER_RESET_LONG_PRESS_MS);
   }
 
+#if defined(ESP32) || defined(ARDUINO)
+  attachInterrupt(digitalPinToInterrupt(P1_CLK), encoderIsr0, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(P2_CLK), encoderIsr1, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(P3_CLK), encoderIsr2, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(P4_CLK), encoderIsr3, CHANGE);
+#endif
+
   // Configure table reset/roll button (1500 ms hold for reset, 3000 ms hold for Player Count menu)
   pinMode(BTN_RESET, INPUT_PULLUP);
   tableButton.setLongPressMs(TABLE_RESET_LONG_PRESS_MS);
   tableButton.setVeryLongPressMs(TABLE_MENU_LONG_PRESS_MS);
+  tableButton.setDeferSingleClick(true);
 
   // Seed random generator with analog noise on unconnected pin
   randomSeed(analogRead(36) + esp_random());
@@ -91,21 +128,11 @@ void setup() {
     sysLog("[SYS] *** Active Match Restored from Flash: %d Players ***\r\n", gameState.getPlayerCount());
     sysLog("[SYS] Startup self-test bypassed (resuming active game).\r\n");
     sysLog("[SYS] Tabletop Ready: %d Players @ %d Life.\r\n", gameState.getPlayerCount(), STARTING_LIFE);
-    sysLog("[SYS]\r\n");
-    sysLog("[SYS] --- Quick Controls Guide ---\r\n");
-    sysLog("[SYS]   Knob Turn    : Adjust Life / Counter\r\n");
-    sysLog("[SYS]   Knob Click   : Cycle Mode (Life/CMDR/Psn/Tax)\r\n");
-    sysLog("[SYS]   Knob 2xClick : Instant Return to Life Mode\r\n");
-    sysLog("[SYS]   Knob Hold 3s : Reset Player (40 Life)\r\n");
-    sysLog("[SYS]   Red Button   : Roll Starting Player\r\n");
-    sysLog("[SYS]   Red 2xClick  : Toggle Match Event Log\r\n");
-    sysLog("[SYS]   Red Hold 1.5s: Full Game Reset\r\n");
-    sysLog("[SYS]   Red Hold 3s  : Player Count Menu (2-4P)\r\n");
-    sysLog("==================================================\r\n\r\n");
+    printQuickControlsGuide();
   }
 
   // Initialize display and render layout (bypasses self-test if match was restored)
-  displayMgr.begin(matchRestored);
+  displayMgr.begin(matchRestored, millis() + persistence.getRestoredTimestampOffset());
 }
 
 static uint8_t getPlayerIndexForKnob(uint8_t knobIdx, uint8_t playerCount) {
@@ -119,7 +146,7 @@ static uint8_t getPlayerIndexForKnob(uint8_t knobIdx, uint8_t playerCount) {
 }
 
 void loop() {
-  uint32_t currentMs = millis();
+  uint32_t currentMs = millis() + persistence.getRestoredTimestampOffset();
 
   // If a startup self-test is running, advance it or skip on any user input
   if (displayMgr.isSelfTestRunning()) {
@@ -157,8 +184,14 @@ void loop() {
     return;
   }
 
-  // If a first-player roll animation is running, process its frame
+  // If a first-player roll animation is running, process its frame (skip on table button tap)
   if (displayMgr.getScreenMode() == SCREEN_ROLL_ANIMATION) {
+    bool isResetPressed = (digitalRead(BTN_RESET) == LOW);
+    ButtonEvent rstEvt = tableButton.update(isResetPressed, currentMs);
+    if (rstEvt != BTN_EVENT_NONE) {
+      displayMgr.returnToGameScreen();
+      return;
+    }
     displayMgr.updateAnimation(currentMs);
     return;
   }
@@ -172,11 +205,17 @@ void loop() {
   // 1. Process 4 Rotary Encoders (Rotation & Switch)
   // -------------------------------------------------------------
   for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
-    // Read quadrature pin levels
-    bool clkLevel = (digitalRead(ENCODER_CLK_PINS[i]) == HIGH);
-    bool dtLevel  = (digitalRead(ENCODER_DT_PINS[i])  == HIGH);
+    // Check interrupt-accumulated steps first; fallback to pin polling if zero
+    int16_t delta = rotaryDecoders[i].drainSteps();
+    if (delta == 0) {
+      bool clkLevel = (digitalRead(ENCODER_CLK_PINS[i]) == HIGH);
+      bool dtLevel  = (digitalRead(ENCODER_DT_PINS[i])  == HIGH);
+      delta = rotaryDecoders[i].update(clkLevel, dtLevel);
+      if (delta != 0) {
+        rotaryDecoders[i].drainSteps();
+      }
+    }
 
-    int8_t delta = rotaryDecoders[i].update(clkLevel, dtLevel);
     if (delta != 0) {
       if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
         displayMgr.adjustPlayerSelect(delta > 0 ? 1 : -1);
@@ -189,9 +228,12 @@ void loop() {
 
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
 
-      // Dispatch abstract HID action to unified controller
+      // Dispatch abstract HID action to unified controller for all accumulated steps
+      int16_t steps = (delta > 0) ? delta : -delta;
       HIDAction act = (delta > 0) ? ACT_INCREMENT : ACT_DECREMENT;
-      controller.dispatchAction(targetP, act, currentMs);
+      for (int16_t s = 0; s < steps; s++) {
+        controller.dispatchAction(targetP, act, currentMs);
+      }
       persistence.markDirty(currentMs);
 
       // Print live event to Serial

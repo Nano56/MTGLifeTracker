@@ -24,9 +24,15 @@ public:
     // Reset internal state
     void reset();
 
+    // Step accumulator methods for buffered / interrupt-driven acquisition
+    void addStep(int8_t step);
+    int16_t drainSteps();
+    int16_t getPendingSteps() const;
+
 private:
     uint8_t state;
     int8_t  subCount;
+    volatile int16_t accumulatedSteps;
 };
 
 class ButtonDebouncer {
@@ -38,6 +44,9 @@ public:
 
     // Configure very long press duration threshold (0 = disabled)
     void setVeryLongPressMs(uint32_t ms);
+
+    // Configure whether short click is deferred until double click window expires
+    void setDeferSingleClick(bool defer);
 
     // Update with current pin level (true if pressed / LOW on active-low pin) and timestamp.
     // Returns ButtonEvent if an event triggered this tick.
@@ -64,6 +73,7 @@ private:
     // Double-click tracking
     uint32_t lastClickTime;
     bool waitingForSecondClick;
+    bool deferSingleClick;
 };
 
 #endif // INPUT_DECODER_H

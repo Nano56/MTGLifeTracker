@@ -34,7 +34,7 @@ public:
     DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, EventLog& logRef);
 
     // Initial hardware setup & static frame draw
-    void begin(bool restoreMatch = false);
+    void begin(bool restoreMatch = false, uint32_t currentMs = 0);
 
     // Visual Toast Banner (e.g. "MATCH RESTORED")
     void showToast(const char* message, uint32_t currentMs = 0);

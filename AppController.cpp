@@ -29,7 +29,7 @@ bool AppController::dispatchAction(uint8_t playerIdx, HIDAction action, uint32_t
             return true;
 
         case ACT_ROLL_FIRST: {
-            rollStartingPlayer(currentMs, currentMs);
+            rollStartingPlayer(currentMs, currentMs * 2654435761u);
             return true;
         }
 
@@ -44,7 +44,15 @@ void AppController::tick(uint32_t currentMs) {
 
 uint8_t AppController::rollStartingPlayer(uint32_t currentMs, uint32_t seed) {
     uint8_t count = state.getPlayerCount();
-    uint8_t winner = (seed + currentMs) % (count > 0 ? count : NUM_PLAYERS);
+    if (count == 0) count = NUM_PLAYERS;
+    // High-quality integer hash mixing to guarantee fair distribution across all active players
+    uint32_t h = seed ^ (currentMs * 0x9E3779B9u);
+    h ^= (h >> 16);
+    h *= 0x85EBCA6Bu;
+    h ^= (h >> 13);
+    h *= 0xC2B2AE35u;
+    h ^= (h >> 16);
+    uint8_t winner = (uint8_t)(h % count);
     state.recordFirstPlayer(winner, currentMs);
     return winner;
 }

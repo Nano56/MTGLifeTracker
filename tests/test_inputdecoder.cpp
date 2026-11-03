@@ -97,6 +97,101 @@ int main() {
     TEST_ASSERT(evt == BTN_EVENT_LONG_PRESS);
     printf("  [PASS] Custom 3000ms player reset long press threshold verified\n");
 
-    printf(">>> test_inputdecoder: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
+    // 9. Deferred Single Click (Double-Click window timeout)
+    btn.reset();
+    btn.setDeferSingleClick(true);
+    btn.update(true, 7000);
+    btn.update(true, 7050);
+    btn.update(false, 7150);
+    evt = btn.update(false, 7190); // Released at t=7190
+    TEST_ASSERT(evt == BTN_EVENT_NONE); // Single click deferred!
+    evt = btn.update(false, 7400); // 210ms elapsed: still in window
+    TEST_ASSERT(evt == BTN_EVENT_NONE);
+    evt = btn.update(false, 7550); // 360ms elapsed: window expired!
+    TEST_ASSERT(evt == BTN_EVENT_SHORT_CLICK);
+    printf("  [PASS] Deferred single click emits only after double-click window expires\n");
+
+    // 10. Deferred Double Click suppresses Short Click
+    btn.reset();
+    btn.setDeferSingleClick(true);
+    btn.update(true, 8000);
+    btn.update(true, 8040);
+    btn.update(false, 8100);
+    evt = btn.update(false, 8140);
+    TEST_ASSERT(evt == BTN_EVENT_NONE); // Deferred
+    // Second click within window
+    btn.update(true, 8250);
+    btn.update(true, 8290);
+    btn.update(false, 8350);
+    evt = btn.update(false, 8390);
+    TEST_ASSERT(evt == BTN_EVENT_DOUBLE_CLICK); // Immediate double click!
+    // Verify no stray short click follows
+    evt = btn.update(false, 8800);
+    TEST_ASSERT(evt == BTN_EVENT_NONE);
+    printf("  [PASS] Double click cleanly fires without any preceding short click\n");
+
+    // 11. Multi-tier Hold: 3000ms Very Long Press does not fire Long Press during hold
+    btn.reset();
+    btn.setLongPressMs(1500);
+    btn.setVeryLongPressMs(3000);
+    btn.update(true, 9000);
+    btn.update(true, 9050);
+    evt = btn.update(true, 10700); // 1700ms held (> 1500ms): suppressed to allow 3000ms
+    TEST_ASSERT(evt == BTN_EVENT_NONE);
+    evt = btn.update(true, 12050); // 3050ms held (>= 3000ms): fires VERY_LONG_PRESS!
+    TEST_ASSERT(evt == BTN_EVENT_VERY_LONG_PRESS);
+    // Release after very long press emits nothing
+    btn.update(false, 12500);
+    evt = btn.update(false, 12550);
+    TEST_ASSERT(evt == BTN_EVENT_NONE);
+    printf("  [PASS] 3000ms hold fires VERY_LONG_PRESS without firing 1500ms LONG_PRESS\n");
+
+    // 12. Multi-tier Hold: Release between 1500ms and 3000ms fires Long Press on release
+    btn.reset();
+    btn.setLongPressMs(1500);
+    btn.setVeryLongPressMs(3000);
+    btn.update(true, 13000);
+    btn.update(true, 13050);
+    evt = btn.update(true, 14800); // 1800ms held: nothing while holding
+    TEST_ASSERT(evt == BTN_EVENT_NONE);
+    btn.update(false, 14900); // Released at 1900ms (< 3000ms, >= 1500ms)
+    evt = btn.update(false, 14950);
+    TEST_ASSERT(evt == BTN_EVENT_LONG_PRESS); // Fires on release!
+    printf("  [PASS] Releasing after 1500ms but before 3000ms fires LONG_PRESS on release\n");
+
+    // 13. Reset preserves custom configured thresholds (L2 fix)
+    btn.setLongPressMs(2500);
+    btn.setVeryLongPressMs(5000);
+    btn.setDeferSingleClick(true);
+    btn.reset();
+    btn.update(true, 16000);
+    btn.update(true, 16050);
+    evt = btn.update(true, 18000); // Held 2000ms (< 2500ms): should NOT fire default 1500ms
+    TEST_ASSERT(evt == BTN_EVENT_NONE);
+    printf("  [PASS] reset() preserves custom configured timing thresholds\n");
+
+    // 14. Rotary Step Accumulation Buffer (H2 fix)
+    rot.reset();
+    TEST_ASSERT(rot.getPendingSteps() == 0);
+    TEST_ASSERT(rot.drainSteps() == 0);
+
+    // Simulate 3 full CW detents
+    for (int d = 0; d < 3; d++) {
+        rot.update(false, true);
+        rot.update(false, false);
+        rot.update(true, false);
+        rot.update(true, true);
+    }
+    TEST_ASSERT(rot.getPendingSteps() == 3);
+    TEST_ASSERT(rot.drainSteps() == 3);
+    TEST_ASSERT(rot.getPendingSteps() == 0); // Drained!
+
+    // Direct manual step injection (e.g. from ISR / hardware timer)
+    rot.addStep(-5);
+    TEST_ASSERT(rot.drainSteps() == -5);
+    TEST_ASSERT(rot.drainSteps() == 0);
+    printf("  [PASS] Rotary decoder step accumulation buffer and atomic draining verified\n");
+
+    printf("\n>>> test_inputdecoder: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }

@@ -16,6 +16,21 @@ RotaryDecoder::RotaryDecoder() {
 void RotaryDecoder::reset() {
     state = 0x03; // Default pulled high (11)
     subCount = 0;
+    accumulatedSteps = 0;
+}
+
+void RotaryDecoder::addStep(int8_t step) {
+    accumulatedSteps += step;
+}
+
+int16_t RotaryDecoder::drainSteps() {
+    int16_t steps = accumulatedSteps;
+    accumulatedSteps = 0;
+    return steps;
+}
+
+int16_t RotaryDecoder::getPendingSteps() const {
+    return accumulatedSteps;
 }
 
 int8_t RotaryDecoder::update(bool clkLevel, bool dtLevel) {
@@ -30,9 +45,11 @@ int8_t RotaryDecoder::update(bool clkLevel, bool dtLevel) {
         // Standard 4-step quadrature detent
         if (subCount >= 4) {
             subCount = 0;
+            accumulatedSteps += 1;
             return 1;
         } else if (subCount <= -4) {
             subCount = 0;
+            accumulatedSteps -= 1;
             return -1;
         }
         
@@ -40,9 +57,11 @@ int8_t RotaryDecoder::update(bool clkLevel, bool dtLevel) {
         if (currentCode == 0x03) {
             if (subCount >= 2) {
                 subCount = 0;
+                accumulatedSteps += 1;
                 return 1;
             } else if (subCount <= -2) {
                 subCount = 0;
+                accumulatedSteps -= 1;
                 return -1;
             }
             subCount = 0;
@@ -57,6 +76,8 @@ int8_t RotaryDecoder::update(bool clkLevel, bool dtLevel) {
 
 ButtonDebouncer::ButtonDebouncer() {
     longPressThresholdMs = LONG_PRESS_MS;
+    veryLongPressThresholdMs = 0;
+    deferSingleClick = false;
     reset();
 }
 
@@ -68,13 +89,15 @@ void ButtonDebouncer::setVeryLongPressMs(uint32_t ms) {
     veryLongPressThresholdMs = ms;
 }
 
+void ButtonDebouncer::setDeferSingleClick(bool defer) {
+    deferSingleClick = defer;
+}
+
 void ButtonDebouncer::reset() {
     state = STATE_RELEASED;
     lastRawLevel = false;
     lastDebounceTime = 0;
     pressStartTime = 0;
-    longPressThresholdMs = LONG_PRESS_MS;
-    veryLongPressThresholdMs = 0;
     longPressEmitted = false;
     veryLongPressEmitted = false;
     lastClickTime = 0;
@@ -82,9 +105,12 @@ void ButtonDebouncer::reset() {
 }
 
 ButtonEvent ButtonDebouncer::update(bool isPressed, uint32_t currentMs) {
-    // Check if double-click window has expired
+    // Check if double-click window has expired for deferred single click
     if (waitingForSecondClick && (currentMs - lastClickTime > DOUBLE_CLICK_WINDOW_MS)) {
         waitingForSecondClick = false;
+        if (deferSingleClick && state == STATE_RELEASED) {
+            return BTN_EVENT_SHORT_CLICK;
+        }
     }
 
     // If raw pin level changed, reset debounce timer
@@ -102,6 +128,20 @@ ButtonEvent ButtonDebouncer::update(bool isPressed, uint32_t currentMs) {
             veryLongPressEmitted = false;
         } else if (!isPressed && state == STATE_PRESSED) {
             state = STATE_RELEASED;
+            uint32_t pressDuration = currentMs - pressStartTime;
+
+            if (veryLongPressEmitted) {
+                // Already emitted VERY_LONG_PRESS while held
+                return BTN_EVENT_NONE;
+            }
+
+            // If a very long press threshold is configured, long press emits on release
+            // to avoid pre-empting the very long press while still holding
+            if (veryLongPressThresholdMs > 0 && pressDuration >= longPressThresholdMs) {
+                waitingForSecondClick = false;
+                return BTN_EVENT_LONG_PRESS;
+            }
+
             if (!longPressEmitted) {
                 if (waitingForSecondClick && (currentMs - lastClickTime <= DOUBLE_CLICK_WINDOW_MS)) {
                     waitingForSecondClick = false;
@@ -109,26 +149,33 @@ ButtonEvent ButtonDebouncer::update(bool isPressed, uint32_t currentMs) {
                 } else {
                     waitingForSecondClick = true;
                     lastClickTime = currentMs;
-                    return BTN_EVENT_SHORT_CLICK;
+                    if (!deferSingleClick) {
+                        return BTN_EVENT_SHORT_CLICK;
+                    }
                 }
             }
         }
     }
 
     // Check long press while still held down
-    if (state == STATE_PRESSED && !longPressEmitted) {
-        if ((currentMs - pressStartTime) >= longPressThresholdMs) {
-            longPressEmitted = true;
-            waitingForSecondClick = false;
-            return BTN_EVENT_LONG_PRESS;
-        }
-    }
+    if (state == STATE_PRESSED) {
+        uint32_t pressDuration = currentMs - pressStartTime;
 
-    // Check very long press while still held down (e.g. 3s hold)
-    if (state == STATE_PRESSED && longPressEmitted && !veryLongPressEmitted && veryLongPressThresholdMs > 0) {
-        if ((currentMs - pressStartTime) >= veryLongPressThresholdMs) {
-            veryLongPressEmitted = true;
-            return BTN_EVENT_VERY_LONG_PRESS;
+        // If very long press is configured, check it first while held
+        if (veryLongPressThresholdMs > 0) {
+            if (!veryLongPressEmitted && pressDuration >= veryLongPressThresholdMs) {
+                veryLongPressEmitted = true;
+                longPressEmitted = true;
+                waitingForSecondClick = false;
+                return BTN_EVENT_VERY_LONG_PRESS;
+            }
+        } else {
+            // Standard button without very long press threshold: emits on hold
+            if (!longPressEmitted && pressDuration >= longPressThresholdMs) {
+                longPressEmitted = true;
+                waitingForSecondClick = false;
+                return BTN_EVENT_LONG_PRESS;
+            }
         }
     }
 

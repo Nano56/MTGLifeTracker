@@ -46,12 +46,12 @@ DisplayManager::DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, Ev
     }
 }
 
-void DisplayManager::begin(bool restoreMatch) {
+void DisplayManager::begin(bool restoreMatch, uint32_t currentMs) {
     tft.begin();
     tft.setRotation(1); // Landscape 320 x 240
     if (restoreMatch) {
         returnToGameScreen();
-        showToast("MATCH RESTORED", 0);
+        showToast("MATCH RESTORED", currentMs);
     } else {
 #if ENABLE_STARTUP_SELF_TEST
         startSelfTest(0);
@@ -328,10 +328,13 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
         }
 
         if (killerOpp >= 0) {
-            quadCanvas.printf("*** DEAD: 21 CMDR (P%d) ***", killerOpp + 1);
+            quadCanvas.setCursor(20, 98);
+            quadCanvas.printf("DEAD: 21 CMDR P%d", killerOpp + 1);
         } else if (p.life <= 0) {
+            quadCanvas.setCursor(22, 98);
             quadCanvas.print("*** DEAD: 0 LIFE ***");
         } else {
+            quadCanvas.setCursor(22, 98);
             quadCanvas.print("*** DEAD: 10 POIS ***");
         }
     } else {
@@ -358,8 +361,9 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
     // Blit rendered quadrant buffer to hardware display
     tft.drawRGBBitmap(qx, qy, quadCanvas.getBuffer(), qw, qh);
 
-    // Ensure center dividers remain cleanly drawn
-    drawStaticLayout();
+    if (forceFullRedraw) {
+        drawStaticLayout();
+    }
 
     // Mark quadrant as clean
     state.clearDirty(playerIdx);
@@ -564,8 +568,7 @@ void DisplayManager::renderHalf(uint8_t playerIdx) {
     // Blit Tile 2: If rotated 180°, the player's right is board x = 0. If normal, x = 160.
     tft.drawRGBBitmap(isFlipped ? 0 : QUAD_WIDTH, qy, quadCanvas.getBuffer(), QUAD_WIDTH, QUAD_HEIGHT);
 
-    // Redraw static layout dividers and clear dirty flag
-    drawStaticLayout();
+    // Clear dirty flag
     state.clearDirty(playerIdx);
 }
 
@@ -746,7 +749,10 @@ void DisplayManager::startRollAnimation(uint8_t winningPlayer, uint32_t currentM
 }
 
 bool DisplayManager::updateAnimation(uint32_t currentMs) {
-    if (currentScreen != SCREEN_ROLL_ANIMATION) return false;
+    if (currentScreen != SCREEN_ROLL_ANIMATION &&
+        !(currentScreen == SCREEN_SELF_TEST && selfTestStep == TEST_STEP_ROLL_ANIMATION)) {
+        return false;
+    }
 
     // Elapsed time since start of animation
     uint32_t elapsed = currentMs - animStartTime;
@@ -949,7 +955,13 @@ void DisplayManager::runSelfTestStep(SelfTestStep step, uint32_t currentMs) {
             state.cycleMode(3, currentMs);
             state.applyDelta(3, 1, currentMs);
             updateDirtyQuadrants();
-            selfTestLog("  [3/9] Multi-Mode Counters (Life, CMDR, Psn)  [PASS]\r\n");
+            {
+                bool ok = (state.getPlayer(0).life == 35) &&
+                          (state.getPlayer(1).cmdrDmg[0] == 5) &&
+                          (state.getPlayer(2).poison == 3) &&
+                          (state.getPlayer(3).tax == 2);
+                selfTestLog("  [3/9] Multi-Mode Counters (Life, CMDR, Psn)  [%s]\r\n", ok ? "PASS" : "FAIL");
+            }
             break;
 
         case TEST_STEP_LETHAL:
@@ -958,7 +970,10 @@ void DisplayManager::runSelfTestStep(SelfTestStep step, uint32_t currentMs) {
             // P2 takes 21 commander damage from P1 -> LETHAL
             state.applyDelta(1, 16, currentMs);
             updateDirtyQuadrants();
-            selfTestLog("  [4/9] Lethal Condition Elimination Alerts .. [PASS]\r\n");
+            {
+                bool ok = state.getPlayer(1).isDead && state.getPlayer(2).isDead;
+                selfTestLog("  [4/9] Lethal Condition Elimination Alerts .. [%s]\r\n", ok ? "PASS" : "FAIL");
+            }
             break;
 
         case TEST_STEP_EVENT_LOG:

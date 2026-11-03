@@ -13,7 +13,7 @@ static std::map<std::string, std::vector<uint8_t>> mockStorage;
 #endif
 
 StorageManager::StorageManager(GameState& stateRef, EventLog& logRef)
-    : state(stateRef), log(logRef), dirty(false), lastDirtyMs(0), initialized(false) {
+    : state(stateRef), log(logRef), dirty(false), lastDirtyMs(0), restoredTimeOffset(0), initialized(false) {
 }
 
 bool StorageManager::begin() {
@@ -78,6 +78,23 @@ bool StorageManager::hasSavedMatch() {
         return false;
     }
 
+    for (uint8_t i = 0; i < savedState.playerCount; i++) {
+        if (savedState.players[i].life < MIN_LIFE || savedState.players[i].life > MAX_LIFE) {
+            return false;
+        }
+        if (savedState.players[i].poison < 0 || savedState.players[i].poison > MAX_POISON) {
+            return false;
+        }
+        if (savedState.players[i].tax < 0 || savedState.players[i].tax > MAX_TAX) {
+            return false;
+        }
+        for (uint8_t j = 0; j < NUM_PLAYERS; j++) {
+            if (savedState.players[i].cmdrDmg[j] > MAX_CMDR_DAMAGE) {
+                return false;
+            }
+        }
+    }
+
     uint32_t expectedCrc = computeChecksum((const uint8_t*)&savedState, offsetof(SerializedGameState, checksum));
     return (savedState.checksum == expectedCrc);
 }
@@ -137,7 +154,9 @@ bool StorageManager::saveMatch() {
 
     savedLog.checksum = computeChecksum((const uint8_t*)&savedLog, offsetof(SerializedEventLog, checksum));
 
-    writeBlob(NVS_KEY_EVENT_LOG, &savedLog, sizeof(savedLog));
+    if (!writeBlob(NVS_KEY_EVENT_LOG, &savedLog, sizeof(savedLog))) {
+        return false;
+    }
 
     dirty = false;
     return true;
@@ -173,10 +192,19 @@ bool StorageManager::loadMatch() {
             uint32_t expectedCrc = computeChecksum((const uint8_t*)&savedLog, offsetof(SerializedEventLog, checksum));
             if (savedLog.checksum == expectedCrc) {
                 log.clear();
-                for (uint8_t i = 0; i < savedLog.eventCount; i++) {
+                uint8_t countToRestore = savedLog.eventCount;
+                if (countToRestore > EVENT_LOG_CAPACITY) {
+                    countToRestore = EVENT_LOG_CAPACITY;
+                }
+                uint32_t latestTimestamp = 0;
+                for (uint8_t i = 0; i < countToRestore; i++) {
                     const SerializedEvent& e = savedLog.events[i];
+                    if (e.timestampMs > latestTimestamp) {
+                        latestTimestamp = e.timestampMs;
+                    }
                     log.log(e.timestampMs, e.player, e.type, e.delta, e.newValue, e.source, e.secondaryValue);
                 }
+                restoredTimeOffset = latestTimestamp;
             }
         }
     }
@@ -192,6 +220,7 @@ void StorageManager::clearStorage() {
     eraseKey(NVS_KEY_GAME_STATE);
     eraseKey(NVS_KEY_EVENT_LOG);
     dirty = false;
+    restoredTimeOffset = 0;
 }
 
 void StorageManager::markDirty(uint32_t currentMs) {

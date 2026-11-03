@@ -139,6 +139,27 @@ int main() {
     }
     printf("  [PASS] Full game reset restored all players to 40 life and 0 commander damage\n");
 
+    // =========================================================
+    // SCENARIO 2: First-Player Roll Fairness & Distribution
+    // =========================================================
+    printf("\n[Scenario 2] First-Player Roll Fairness (2P, 3P, 4P)\n");
+    for (uint8_t count = 2; count <= 4; count++) {
+        controller.setPlayerCount(count, 40000);
+        bool seenPlayer[NUM_PLAYERS] = { false };
+        for (uint32_t t = 1000; t < 1200; t++) {
+            controller.dispatchAction(0, ACT_ROLL_FIRST, t);
+            GameEvent evt;
+            TEST_ASSERT(log.getLatest(evt));
+            TEST_ASSERT(evt.type == EVT_ROLL_FIRST);
+            TEST_ASSERT(evt.player < count);
+            seenPlayer[evt.player] = true;
+        }
+        for (uint8_t p = 0; p < count; p++) {
+            TEST_ASSERT(seenPlayer[p] == true);
+        }
+        printf("  [PASS] %d-Player mode selected every player at least once\n", count);
+    }
+
     printf("\n>>> test_scenarios: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }

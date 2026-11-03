@@ -78,6 +78,7 @@ public:
     // Status queries
     bool isDirty() const { return dirty; }
     uint32_t getLastDirtyMs() const { return lastDirtyMs; }
+    uint32_t getRestoredTimestampOffset() const { return restoredTimeOffset; }
 
     // Checksum calculation helper (Fletcher-32)
     static uint32_t computeChecksum(const uint8_t* data, size_t length);
@@ -87,6 +88,7 @@ private:
     EventLog& log;
     bool dirty;
     uint32_t lastDirtyMs;
+    uint32_t restoredTimeOffset;
     bool initialized;
 
     // Platform-specific storage backend methods

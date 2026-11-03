@@ -161,6 +161,32 @@ int main() {
     TEST_ASSERT(c1 != c2);
     printf("  [PASS] Checksum calculation and bit-flip detection verified\n");
 
-    printf(">>> test_storage: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
+    // 9. Timestamp continuity after power loss recovery (M2 fix)
+    storage.clearStorage();
+    state.resetAll(0);
+    state.applyDelta(0, -3, 150000); // Event at 2.5 minutes (150,000ms)
+    TEST_ASSERT(storage.saveMatch() == true);
+
+    state.resetAll(0);
+    TEST_ASSERT(storage.loadMatch() == true);
+    TEST_ASSERT(storage.getRestoredTimestampOffset() == 150000);
+
+    // In a new boot session, boot millis is small (e.g. 5000ms)
+    uint32_t simulatedBootMs = 5000;
+    uint32_t continuousCurrentMs = simulatedBootMs + storage.getRestoredTimestampOffset();
+    TEST_ASSERT(continuousCurrentMs == 155000);
+    state.applyDelta(0, -2, continuousCurrentMs);
+
+    TEST_ASSERT(log.getLatest(latestEvt));
+    TEST_ASSERT(latestEvt.timestampMs == 155000);
+    TEST_ASSERT(latestEvt.timestampMs > 150000); // Strictly monotonic!
+    printf("  [PASS] Restored match timestamp continuity maintains monotonic timeline\n");
+
+    // 10. Clear storage resets restored offset
+    storage.clearStorage();
+    TEST_ASSERT(storage.getRestoredTimestampOffset() == 0);
+    printf("  [PASS] clearStorage() resets timestamp offset\n");
+
+    printf("\n>>> test_storage: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }

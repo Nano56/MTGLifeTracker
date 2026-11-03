@@ -132,6 +132,37 @@ int main() {
     }
     printf("  [PASS] 3-Player layout rendered\n");
 
+    // 10. Table Button UX Flow Simulation
+    // Modify P1 life to 27
+    state.applyDelta(0, -13, 13000);
+    TEST_ASSERT(state.getPlayer(0).life == 27);
+
+    // Double-click red button enters event log
+    display.toggleEventLogScreen();
+    TEST_ASSERT(display.getScreenMode() == SCREEN_EVENT_LOG);
+    // Any button click while on event log screen returns to game screen
+    display.returnToGameScreen();
+    TEST_ASSERT(display.getScreenMode() == SCREEN_GAME);
+    TEST_ASSERT(state.getPlayer(0).life == 27); // Life preserved!
+
+    // 3.0s hold enters player select menu without resetting player life
+    display.openPlayerSelectScreen();
+    TEST_ASSERT(display.getScreenMode() == SCREEN_PLAYER_SELECT);
+    TEST_ASSERT(state.getPlayer(0).life == 27); // Life NOT reset upon entering menu!
+    display.returnToGameScreen(); // Cancel / back to game
+    TEST_ASSERT(display.getScreenMode() == SCREEN_GAME);
+    TEST_ASSERT(state.getPlayer(0).life == 27);
+    printf("  [PASS] Table button event log toggle and non-destructive menu entry verified\n");
+
+    // 11. Toast Banner Lifecycle
+    display.showToast("MATCH RESTORED", 20000);
+    TEST_ASSERT(display.isToastActive() == true);
+    display.updateToast(21000); // 1000ms < 1500ms
+    TEST_ASSERT(display.isToastActive() == true);
+    display.updateToast(21500); // 1500ms >= 1500ms -> expired!
+    TEST_ASSERT(display.isToastActive() == false);
+    printf("  [PASS] Toast banner lifecycle and 1500ms duration verified\n");
+
     printf(">>> test_display: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }
