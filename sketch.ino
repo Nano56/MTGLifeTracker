@@ -68,17 +68,15 @@ void setup() {
   if (persistence.hasSavedMatch() && persistence.loadMatch()) {
     matchRestored = true;
     Serial.printf("[SYS] *** Active Match Restored from Flash: %d Players ***\n", gameState.getPlayerCount());
+    Serial.println("[SYS] Startup self-test bypassed (resuming active game).");
+    Serial.printf("[SYS] Ready. %d Players @ %d Life.\n", gameState.getPlayerCount(), STARTING_LIFE);
+    Serial.println("[SYS] Turn knob: +/- Counter | Click knob: Cycle Mode | Double-click: Return to Life");
+    Serial.println("[SYS] Hold knob (3s): Reset Player | Red Button: Click to Roll | Double-click: Event Log");
+    Serial.println("[SYS] Hold Red Button (1.5s): Reset Game | Hold Red Button (3s): Player Count Setup (2-4P)\n");
   }
 
   // Initialize display and render layout (bypasses self-test if match was restored)
   displayMgr.begin(matchRestored);
-
-  if (!matchRestored) {
-    Serial.printf("[SYS] Ready. %d Players @ %d Life.\n", gameState.getPlayerCount(), STARTING_LIFE);
-  }
-  Serial.println("[SYS] Turn knob: +/- Counter | Click knob: Cycle Mode | Double-click: Return to Life");
-  Serial.println("[SYS] Hold knob (3s): Reset Player | Red Button: Click to Roll | Double-click: Event Log");
-  Serial.println("[SYS] Hold Red Button (1.5s): Reset Game | Hold Red Button (3s): Player Count Setup (2-4P)\n");
 }
 
 static uint8_t getPlayerIndexForKnob(uint8_t knobIdx, uint8_t playerCount) {
@@ -123,7 +121,6 @@ void loop() {
 
     if (hasInput) {
       displayMgr.skipSelfTest(currentMs);
-      Serial.println("[SYS] Self-test skipped by user input. Ready to play.");
     } else {
       displayMgr.updateSelfTest(currentMs);
     }

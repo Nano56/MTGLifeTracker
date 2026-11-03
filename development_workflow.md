@@ -177,8 +177,15 @@ When the device powers on or resets, an automated visual self-test sequence runs
 9. **First-Player Roll Roulette**: Runs the randomized spinner animation and displays the celebration banner.
 10. **Done / Playable Match**: Automatically resets all players to 40 Life and enters live gameplay.
 
+#### Firmware Serial Test Logger & Report
+Every visual test step executed during startup is simultaneously streamed to the ESP32 Serial Logger (115200 baud). Opening the Wokwi terminal or USB Serial Monitor displays:
+- Real-time step progress (`[TEST] [1/9] Color Palette...`, `[TEST] [2/9] 4-Player Layout...`, etc.).
+- Value transitions (e.g. Life, Commander Damage sync, Poison counters, Commander Tax).
+- Lethal death detection alerts (`[POISON LETHAL]`, `[COMMANDER LETHAL]`).
+- A structured **STARTUP SELF-TEST REPORT** upon completion summarizing checks passed across SPI, canvas blitters, layouts, and rules engines.
+
 > [!TIP]
-> **Instant Skip**: Turn any knob or click any button at any moment during the startup test sequence to immediately skip ahead to a clean, playable 4-player game.
+> **Instant Skip**: Turn any knob or click any button at any moment during the startup test sequence to immediately skip ahead to a clean, playable 4-player game. An abort notice and ready message are logged to Serial.
 
 #### Interactive Controls in Wokwi
 - **Rotate Knob**: Hover mouse over knob and drag the circular dial clockwise / counter-clockwise.
