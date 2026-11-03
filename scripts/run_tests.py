@@ -104,6 +104,14 @@ def main():
             "extra_flags": ["-Itests"]
         })
 
+    if os.path.exists("tests/test_storage.cpp"):
+        test_targets.append({
+            "name": "test_storage",
+            "sources": ["tests/test_storage.cpp", "StorageManager.cpp", "GameState.cpp", "EventLog.cpp"],
+            "binary": "tests/test_storage.exe",
+            "extra_flags": ["-I.", "-Itests"]
+        })
+
     all_passed = True
     total_suites = len(test_targets)
     suite_results = []

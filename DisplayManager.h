@@ -34,7 +34,12 @@ public:
     DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, EventLog& logRef);
 
     // Initial hardware setup & static frame draw
-    void begin();
+    void begin(bool restoreMatch = false);
+
+    // Visual Toast Banner (e.g. "MATCH RESTORED")
+    void showToast(const char* message, uint32_t currentMs = 0);
+    void updateToast(uint32_t currentMs);
+    bool isToastActive() const;
 
     // Redraw static layout dividers and headers
     void drawStaticLayout();
@@ -85,6 +90,11 @@ private:
     ScreenMode currentScreen;
     uint8_t menuPlayerCount;
     bool lastRenderedDead[NUM_PLAYERS];
+
+    // Toast Banner state
+    bool toastActive;
+    uint32_t toastStartTime;
+    char toastText[32];
 
     // Startup Self-Test state
     SelfTestStep selfTestStep;

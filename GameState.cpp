@@ -72,6 +72,23 @@ void GameState::resetPlayer(uint8_t playerIdx, uint32_t currentMs) {
     log.log(currentMs, playerIdx, EVT_PLAYER_RESET, 0, STARTING_LIFE);
 }
 
+void GameState::restorePlayerState(uint8_t playerIdx, int16_t life, int8_t poison, int8_t tax, const uint8_t cmdrDmg[NUM_PLAYERS]) {
+    if (playerIdx >= NUM_PLAYERS) return;
+
+    PlayerState& p = players[playerIdx];
+    p.life = life;
+    p.poison = poison;
+    p.tax = tax;
+    for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
+        p.cmdrDmg[i] = cmdrDmg[i];
+    }
+    p.activeMode = MODE_LIFE;
+    p.cmdrSource = getFirstOpponent(playerIdx);
+    p.modeTimestamp = 0;
+    p.dirty = true;
+    updateLethal(playerIdx);
+}
+
 bool GameState::applyDelta(uint8_t playerIdx, int16_t delta, uint32_t currentMs) {
     if (playerIdx >= NUM_PLAYERS || delta == 0) return false;
 

@@ -5,22 +5,67 @@
 DisplayManager::DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, EventLog& logRef)
     : tft(tftRef), state(stateRef), log(logRef), quadCanvas(QUAD_WIDTH, QUAD_HEIGHT),
       currentScreen(SCREEN_GAME), menuPlayerCount(DEFAULT_PLAYER_COUNT),
+      toastActive(false), toastStartTime(0),
       selfTestStep(TEST_STEP_NONE), selfTestStepStartTime(0),
       rollWinner(0), animStartTime(0), lastAnimTick(0),
       animCurrentHighlight(0), animDelay(50), animSettled(false) {
+    memset(toastText, 0, sizeof(toastText));
     for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
         lastRenderedDead[i] = false;
     }
 }
 
-void DisplayManager::begin() {
+void DisplayManager::begin(bool restoreMatch) {
     tft.begin();
     tft.setRotation(1); // Landscape 320 x 240
+    if (restoreMatch) {
+        returnToGameScreen();
+        showToast("MATCH RESTORED", 0);
+    } else {
 #if ENABLE_STARTUP_SELF_TEST
-    startSelfTest(0);
+        startSelfTest(0);
 #else
-    returnToGameScreen();
+        returnToGameScreen();
 #endif
+    }
+}
+
+void DisplayManager::showToast(const char* message, uint32_t currentMs) {
+    if (!message) return;
+    strncpy(toastText, message, sizeof(toastText) - 1);
+    toastText[sizeof(toastText) - 1] = '\0';
+    toastActive = true;
+    toastStartTime = currentMs;
+
+    int16_t bx = (SCREEN_WIDTH - 200) / 2;
+    int16_t by = (SCREEN_HEIGHT - 32) / 2;
+    tft.fillRoundRect(bx, by, 200, 32, 6, COLOR_BLACK);
+    tft.drawRoundRect(bx, by, 200, 32, 6, COLOR_P3);
+    tft.drawRoundRect(bx + 1, by + 1, 198, 30, 5, COLOR_P3);
+
+    tft.setTextColor(COLOR_P3);
+    tft.setTextSize(2);
+    int16_t textLen = (int16_t)strlen(toastText);
+    int16_t tx = (SCREEN_WIDTH - (textLen * 12)) / 2;
+    int16_t ty = by + 8;
+    tft.setCursor(tx, ty);
+    tft.print(toastText);
+}
+
+void DisplayManager::updateToast(uint32_t currentMs) {
+    if (!toastActive) return;
+    if (currentMs - toastStartTime >= 1500) {
+        toastActive = false;
+        drawStaticLayout();
+        uint8_t count = state.getPlayerCount();
+        for (uint8_t i = 0; i < count; i++) {
+            renderQuadrant(i, true);
+        }
+    }
+}
+
+bool DisplayManager::isToastActive() const {
+    return toastActive;
 }
 
 void DisplayManager::returnToGameScreen() {

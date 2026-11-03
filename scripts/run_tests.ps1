@@ -92,6 +92,15 @@ if (Test-Path "tests/test_display.cpp") {
     }
 }
 
+if (Test-Path "tests/test_storage.cpp") {
+    $testSuites += @{
+        Name = "test_storage"
+        Sources = @("tests/test_storage.cpp", "StorageManager.cpp", "GameState.cpp", "EventLog.cpp")
+        Binary = "tests/test_storage.exe"
+        ExtraFlags = @("-I.", "-Itests")
+    }
+}
+
 foreach ($suite in $testSuites) {
     $sName = $suite.Name
     Log-Message "`n[$testIndex/$($testSuites.Count)] Building & Running $sName..." -color Yellow

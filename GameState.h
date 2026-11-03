@@ -45,6 +45,9 @@ public:
     // Reset a single player to default state
     void resetPlayer(uint8_t playerIdx, uint32_t currentMs);
 
+    // Restore full player state (used during NVS recovery)
+    void restorePlayerState(uint8_t playerIdx, int16_t life, int8_t poison, int8_t tax, const uint8_t cmdrDmg[NUM_PLAYERS]);
+
     // Apply incremental tick (+1, -1, etc.) to active counter
     bool applyDelta(uint8_t playerIdx, int16_t delta, uint32_t currentMs);
 

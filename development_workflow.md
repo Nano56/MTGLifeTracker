@@ -33,14 +33,22 @@ The project follows a modular, layered embedded architecture designed for rapid 
      │     GameState      │──▶│      EventLog      │
      │ MTG Rules, Counters│   │ Circular Ring Log  │
      │ Lethal Conditions  │   │  Serial & On-Screen│
-     └────────────────────┘   └────────────────────┘
+     └──────────┬─────────┘   └──────────┬─────────┘
+                │                        │
+                ▼                        ▼
+     ┌─────────────────────────────────────────────┐
+     │               StorageManager                │
+     │   Debounced NVS Flash Persistence (2.5s)    │
+     │   Fletcher-32 Checksums, Power Recovery     │
+     └─────────────────────────────────────────────┘
 ```
 
 ### Key Principles
-1. **Hardware-Agnostic Core**: `GameState`, `EventLog`, `InputDecoder`, and `AppController` have zero hardware dependencies. They compile and test on any host system (Windows, Linux, macOS) using standard C++ (C++11 or higher).
+1. **Hardware-Agnostic Core**: `GameState`, `EventLog`, `InputDecoder`, `AppController`, and `StorageManager` have zero hardware dependencies. They compile and test on any host system (Windows, Linux, macOS) using standard C++ (C++11 or higher) via clean mock persistence abstractions.
 2. **Tabletop Mirroring**: Players 1 and 2 sit across the table from Players 3 and 4. The top half of the screen is rendered rotated 180° into an off-screen `GFXcanvas16` buffer so each seated player reads their quadrant right-side up.
 3. **Zero-Flicker Partial Redraws**: Quadrants are rendered in an off-screen canvas buffer and pushed in a single SPI burst via `tft.drawRGBBitmap()`.
 4. **Pin Safety**: Strapping-pin conflicts are strictly avoided (GPIO 12 MTDI and GPIO 2 boot pins are not used; remapped to GPIO 32 and GPIO 34). All encoders are powered from 3.3V.
+5. **Flash Wear-Leveling & Power Loss Recovery**: Active match states (player count, life, counters, commander damage, deaths, and event log ring buffer) are auto-saved to non-volatile storage (NVS) using a 2.5-second inactivity debounce timer. On boot, if a valid match is detected, the board state is seamlessly restored, displaying a brief `[ MATCH RESTORED ]` emerald toast banner.
 
 ---
 
@@ -71,7 +79,7 @@ python -m venv .venv
 ### Step 1: Logic Development & Native Testing (Fastest)
 When adding rules, counters, input behaviors, or menu modes, you **do not** need to flash hardware or wait for an emulator.
 
-Run all 276 automated tests natively (runs in < 5 seconds):
+Run all 327 automated tests natively (runs in < 5 seconds):
 ```powershell
 # PowerShell (interactive with pause & test report)
 .\scripts\run_tests.ps1
@@ -90,7 +98,7 @@ python scripts/run_tests.py --no-pause
 
 #### Test Execution Report & Automated Logging
 Running any of the test scripts automatically:
-1. **Compiles & executes** all 5 test targets with zero warnings.
+1. **Compiles & executes** all 6 test targets with zero warnings.
 2. **Generates a full structured Test Execution Report** detailing assertions passed, individual suite execution times, and overall verdict.
 3. **Persists full timestamped logs** to `logs/test_run_<timestamp>.log` and `logs/test_run_latest.log` for debugging and review.
 4. **Pauses interactively** (`Press [Enter] to continue...`) in interactive terminals so you can comfortably read the report before the console closes. Use `-NoPause` (or `/nopause`, `--no-pause`) in automated workflows.
@@ -103,6 +111,7 @@ Running any of the test scripts automatically:
 | `test_inputdecoder` | [`tests/test_inputdecoder.cpp`](tests/test_inputdecoder.cpp) | Quadrature Gray-code decoding, contact bounce rejection (< 35ms), short click release detection, rapid double-click detection, long-press thresholds (1.5s vs 3.0s). |
 | `test_scenarios` | [`tests/test_scenarios.cpp`](tests/test_scenarios.cpp) | Full multi-turn match simulations combining HID inputs, multi-player combat damage, poison elimination, and game resets. |
 | `test_display` | [`tests/test_display.cpp`](tests/test_display.cpp) | Native compilation of `DisplayManager`, screen mode state machine, startup self-test sequence, 2P/3P/4P layouts, 180° rotation, and roll animation lifecycle. |
+| `test_storage` | [`tests/test_storage.cpp`](tests/test_storage.cpp) | Power loss recovery, debounced NVS commit timing (2500ms), packed byte serialization with Fletcher-32 checksums, round-trip state & event log restoration, dynamic 2P/3P/4P modes, and match reset purge. |
 
 ---
 

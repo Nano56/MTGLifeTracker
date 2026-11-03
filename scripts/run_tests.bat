@@ -84,13 +84,24 @@ tests\test_scenarios.exe
 
 if exist "tests\test_display.cpp" (
     echo.
-    echo [5/5] Building & Running test_display...
+    echo [5/6] Building & Running test_display...
     g++ -std=c++17 -Wall -Wextra -O2 -Itests tests\test_display.cpp DisplayManager.cpp GameState.cpp EventLog.cpp -o tests\test_display.exe >> "%LOG_FILE%" 2>&1
     if %ERRORLEVEL% NEQ 0 (
         echo [FAIL] Compilation failed for test_display
         goto :report_fail
     )
     tests\test_display.exe
+)
+
+if exist "tests\test_storage.cpp" (
+    echo.
+    echo [6/6] Building & Running test_storage...
+    g++ -std=c++17 -Wall -Wextra -O2 -I. -Itests tests\test_storage.cpp StorageManager.cpp GameState.cpp EventLog.cpp -o tests\test_storage.exe >> "%LOG_FILE%" 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        echo [FAIL] Compilation failed for test_storage
+        goto :report_fail
+    )
+    tests\test_storage.exe
 )
 
 echo.
@@ -106,9 +117,9 @@ echo.
 echo ========================================================================
 echo                          TEST EXECUTION REPORT
 echo ========================================================================
-echo   Suites Passed    : 5 / 5 (100%%)
-echo   Total Assertions : 276 passed
-echo   Overall Verdict  : [PASS] ALL UNIT & SCENARIO TESTS PASSED (100%%)
+echo   Suites Passed    : 6 / 6 (100%%)
+echo   Total Assertions : 327 passed
+echo   Overall Verdict  : [PASS] ALL UNIT, SCENARIO & STORAGE TESTS PASSED (100%%)
 echo   Full Log Saved   : %LOG_FILE%
 echo ========================================================================
 

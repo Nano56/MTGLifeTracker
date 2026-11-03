@@ -9,14 +9,16 @@
 #include "AppController.h"
 #include "InputDecoder.h"
 #include "DisplayManager.h"
+#include "StorageManager.h"
 
 // Hardware display object
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 
-// Core business logic, HID controller & state
+// Core business logic, HID controller, persistence & state
 EventLog matchLog;
 GameState gameState(matchLog);
 AppController controller(gameState, matchLog);
+StorageManager persistence(gameState, matchLog);
 DisplayManager displayMgr(tft, gameState, matchLog);
 
 // Encoder hardware pin mapping
@@ -60,10 +62,20 @@ void setup() {
   // Seed random generator with analog noise on unconnected pin
   randomSeed(analogRead(36) + esp_random());
 
-  // Initialize display and render starting 4-player layout
-  displayMgr.begin();
+  // Check Non-Volatile Storage (Flash) for saved match recovery
+  persistence.begin();
+  bool matchRestored = false;
+  if (persistence.hasSavedMatch() && persistence.loadMatch()) {
+    matchRestored = true;
+    Serial.printf("[SYS] *** Active Match Restored from Flash: %d Players ***\n", gameState.getPlayerCount());
+  }
 
-  Serial.printf("[SYS] Ready. %d Players @ %d Life.\n", gameState.getPlayerCount(), STARTING_LIFE);
+  // Initialize display and render layout (bypasses self-test if match was restored)
+  displayMgr.begin(matchRestored);
+
+  if (!matchRestored) {
+    Serial.printf("[SYS] Ready. %d Players @ %d Life.\n", gameState.getPlayerCount(), STARTING_LIFE);
+  }
   Serial.println("[SYS] Turn knob: +/- Counter | Click knob: Cycle Mode | Double-click: Return to Life");
   Serial.println("[SYS] Hold knob (3s): Reset Player | Red Button: Click to Roll | Double-click: Event Log");
   Serial.println("[SYS] Hold Red Button (1.5s): Reset Game | Hold Red Button (3s): Player Count Setup (2-4P)\n");
@@ -125,6 +137,9 @@ void loop() {
     return;
   }
 
+  // Update visual recovery toast if active
+  displayMgr.updateToast(currentMs);
+
   uint8_t activePlayerCount = gameState.getPlayerCount();
 
   // -------------------------------------------------------------
@@ -151,6 +166,7 @@ void loop() {
       // Dispatch abstract HID action to unified controller
       HIDAction act = (delta > 0) ? ACT_INCREMENT : ACT_DECREMENT;
       controller.dispatchAction(targetP, act, currentMs);
+      persistence.markDirty(currentMs);
 
       // Print live event to Serial
       GameEvent latestEvt;
@@ -168,6 +184,7 @@ void loop() {
     if (swEvt == BTN_EVENT_SHORT_CLICK) {
       if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
         displayMgr.confirmPlayerSelect(currentMs);
+        persistence.markDirty(currentMs);
         Serial.printf("[SYS] Confirmed %d Players\n", gameState.getPlayerCount());
         continue;
       }
@@ -187,6 +204,7 @@ void loop() {
     } else if (swEvt == BTN_EVENT_DOUBLE_CLICK) {
       if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
         displayMgr.confirmPlayerSelect(currentMs);
+        persistence.markDirty(currentMs);
         continue;
       }
       if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
@@ -204,6 +222,7 @@ void loop() {
       }
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
       controller.dispatchAction(targetP, ACT_RESET_PLAYER, currentMs);
+      persistence.markDirty(currentMs);
       Serial.printf("[SYS] P%d reset to %d life\n", targetP + 1, STARTING_LIFE);
     }
   }
@@ -217,6 +236,7 @@ void loop() {
   if (rstEvt == BTN_EVENT_SHORT_CLICK) {
     if (displayMgr.getScreenMode() == SCREEN_PLAYER_SELECT) {
       displayMgr.confirmPlayerSelect(currentMs);
+      persistence.markDirty(currentMs);
       Serial.printf("[SYS] Confirmed %d Players\n", gameState.getPlayerCount());
     } else if (displayMgr.getScreenMode() == SCREEN_EVENT_LOG) {
       // Exit event log view back to game screen
@@ -239,6 +259,7 @@ void loop() {
       // Full Table Game Reset via controller (1.5s hold)
       controller.dispatchAction(0, ACT_RESET_GAME, currentMs);
       displayMgr.returnToGameScreen();
+      persistence.clearStorage();
       Serial.printf("\n[SYS] === FULL GAME RESET: All %d players reset to %d Life ===\n\n",
                     gameState.getPlayerCount(), STARTING_LIFE);
     }
@@ -249,9 +270,12 @@ void loop() {
   }
 
   // -------------------------------------------------------------
-  // 3. Periodic Controller Tick
+  // 3. Periodic Controller & Persistence Ticks
   // -------------------------------------------------------------
   controller.tick(currentMs);
+  if (persistence.tick(currentMs)) {
+    Serial.println("[SYS] Match state auto-saved to Flash (NVS).");
+  }
 
   // -------------------------------------------------------------
   // 4. Render any dirty quadrants with flicker-free partial update
