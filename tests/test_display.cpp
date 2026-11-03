@@ -191,6 +191,39 @@ int main() {
     TEST_ASSERT(display.getScreenMode() == SCREEN_GAME);
     printf("  [PASS] Event log scrolling bounds and window offset verified\n");
 
+    // 13. Transient Delta Accumulator Lifecycle
+    display.recordDelta(0, -3, 30000);
+    TEST_ASSERT(display.getRecentDelta(0) == -3);
+    TEST_ASSERT(display.getRecentDelta(1) == 0);
+
+    // Rapid successive turns accumulate
+    display.recordDelta(0, -2, 30500);
+    TEST_ASSERT(display.getRecentDelta(0) == -5);
+
+    // Life gain in same window partially cancels/accumulates
+    display.recordDelta(0, 1, 30800);
+    TEST_ASSERT(display.getRecentDelta(0) == -4);
+
+    // Before timeout (<1500ms from last adjustment at 30800)
+    display.updateTransientDeltas(32000); // 1200ms elapsed
+    TEST_ASSERT(display.getRecentDelta(0) == -4);
+
+    // After timeout (>= 1500ms elapsed)
+    display.updateTransientDeltas(32301); // 1501ms elapsed
+    TEST_ASSERT(display.getRecentDelta(0) == 0);
+
+    // Positive delta and explicit clearDelta
+    display.recordDelta(1, 4, 33000);
+    TEST_ASSERT(display.getRecentDelta(1) == 4);
+    display.clearDelta(1);
+    TEST_ASSERT(display.getRecentDelta(1) == 0);
+
+    // Boundary conditions
+    display.recordDelta(NUM_PLAYERS, 5, 34000);
+    TEST_ASSERT(display.getRecentDelta(NUM_PLAYERS) == 0);
+    display.clearDelta(NUM_PLAYERS);
+    printf("  [PASS] Transient delta accumulator recording, accumulation, timeout and clear verified\n");
+
     printf(">>> test_display: ALL %d ASSERTIONS PASSED <<<\n\n", g_assertCount);
     return 0;
 }

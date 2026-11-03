@@ -11,6 +11,7 @@ Commander games present unique tabletop challenges:
 This project builds an intuitive, easy-to-read, tabletop hardware device for tracking game state without relying on phone apps that drain phone batteries or go to sleep.
 
 - For development, build, and test instructions, see [development_workflow.md](development_workflow.md).
+- For the physical Bill of Materials (BOM), part model IDs, purchase links, battery solutions, and soldering/wiring guide, see [hardware.md](hardware.md).
 - For detailed hardware choices, GPIO pin budgets, and design rationale, see [docs/HARDWARE_SPEC.md](docs/HARDWARE_SPEC.md).
 
 ---
@@ -21,6 +22,7 @@ This project builds an intuitive, easy-to-read, tabletop hardware device for tra
 MTGLifeTracker/
 ├── docs/                       # Architecture decisions and hardware specifications
 │   └── HARDWARE_SPEC.md        # ESP32 pin budget, component rationale, power plan
+├── hardware.md                 # Full BOM, part Model IDs, links, battery & soldering guide
 ├── scripts/                    # Build scripts and test runners
 │   ├── run_tests.ps1           # PowerShell native test runner
 │   ├── run_tests.bat           # Windows CMD batch test runner

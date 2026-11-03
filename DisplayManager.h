@@ -61,6 +61,12 @@ public:
     void scrollEventLog(int8_t step);
     uint16_t getLogScrollOffset() const;
 
+    // Transient Delta Accumulator (combat damage / life gain popup)
+    void recordDelta(uint8_t playerIdx, int16_t delta, uint32_t currentMs);
+    void clearDelta(uint8_t playerIdx);
+    void updateTransientDeltas(uint32_t currentMs);
+    int16_t getRecentDelta(uint8_t playerIdx) const;
+
     // Player Count Setup Menu
     void openPlayerSelectScreen();
     void adjustPlayerSelect(int8_t step);
@@ -93,6 +99,10 @@ private:
     uint8_t menuPlayerCount;
     uint16_t logScrollOffset;
     bool lastRenderedDead[NUM_PLAYERS];
+
+    // Transient Delta Accumulator state
+    int16_t recentDelta[NUM_PLAYERS];
+    uint32_t lastDeltaTimeMs[NUM_PLAYERS];
 
     // Toast Banner state
     bool toastActive;

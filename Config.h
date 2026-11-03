@@ -65,6 +65,7 @@
 #define TABLE_MENU_LONG_PRESS_MS    3000
 #define PLAYER_RESET_LONG_PRESS_MS  3000
 #define DOUBLE_CLICK_WINDOW_MS      350
+#define DELTA_POPUP_TIMEOUT_MS      1500
 #define AUTO_RETURN_LIFE_MS         0 // Set to 0 to disable auto-return; modes stay until explicitly cycled
 #define ENABLE_STARTUP_SELF_TEST    true
 #define SELF_TEST_STEP_MS           1400

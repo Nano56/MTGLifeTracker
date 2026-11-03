@@ -43,6 +43,8 @@ DisplayManager::DisplayManager(Adafruit_ILI9341& tftRef, GameState& stateRef, Ev
     memset(toastText, 0, sizeof(toastText));
     for (uint8_t i = 0; i < NUM_PLAYERS; i++) {
         lastRenderedDead[i] = false;
+        recentDelta[i] = 0;
+        lastDeltaTimeMs[i] = 0;
     }
 }
 
@@ -248,6 +250,26 @@ void DisplayManager::renderQuadrant(uint8_t playerIdx, bool forceFullRedraw) {
     quadCanvas.setCursor(10, 24);
     quadCanvas.printf("%sLIFE", isLifeActive ? "> " : "  ");
 
+    // Delta accumulator badge (e.g. [+3] or [-5] during rapid adjustments)
+    if (recentDelta[playerIdx] != 0) {
+        int16_t d = recentDelta[playerIdx];
+        bool isPos = (d > 0);
+        uint16_t badgeColor = isPos ? 0x05E0 : COLOR_DEAD_TEXT;
+        char deltaBuf[8];
+        snprintf(deltaBuf, sizeof(deltaBuf), "%+d", d);
+        uint8_t dLen = (uint8_t)strlen(deltaBuf);
+        int16_t badgeW = (dLen * 6) + 8;
+        if (badgeW < 22) badgeW = 22;
+        int16_t badgeX = 80 - badgeW;
+
+        quadCanvas.fillRoundRect(badgeX, 22, badgeW, 12, 2, badgeColor);
+        quadCanvas.setTextColor(COLOR_WHITE);
+        quadCanvas.setTextSize(1);
+        int16_t textX = badgeX + (badgeW - (dLen * 6)) / 2;
+        quadCanvas.setCursor(textX, 24);
+        quadCanvas.print(deltaBuf);
+    }
+
     // Big Life Number (Text Size 4, or 3 for 4+ digits)
     char lifeStr[12];
     snprintf(lifeStr, sizeof(lifeStr), "%d", p.life);
@@ -411,6 +433,26 @@ void DisplayManager::renderHalf(uint8_t playerIdx) {
     quadCanvas.setTextColor(isLifeActive ? pColor : COLOR_LIGHTGREY, bgColor);
     quadCanvas.setCursor(10, 24);
     quadCanvas.printf("%sLIFE", isLifeActive ? "> " : "  ");
+
+    // Delta accumulator badge (e.g. [+3] or [-5] during rapid adjustments)
+    if (recentDelta[playerIdx] != 0) {
+        int16_t d = recentDelta[playerIdx];
+        bool isPos = (d > 0);
+        uint16_t badgeColor = isPos ? 0x05E0 : COLOR_DEAD_TEXT;
+        char deltaBuf[8];
+        snprintf(deltaBuf, sizeof(deltaBuf), "%+d", d);
+        uint8_t dLen = (uint8_t)strlen(deltaBuf);
+        int16_t badgeW = (dLen * 6) + 8;
+        if (badgeW < 22) badgeW = 22;
+        int16_t badgeX = 80 - badgeW;
+
+        quadCanvas.fillRoundRect(badgeX, 22, badgeW, 12, 2, badgeColor);
+        quadCanvas.setTextColor(COLOR_WHITE);
+        quadCanvas.setTextSize(1);
+        int16_t textX = badgeX + (badgeW - (dLen * 6)) / 2;
+        quadCanvas.setCursor(textX, 24);
+        quadCanvas.print(deltaBuf);
+    }
 
     char lifeStr[12];
     snprintf(lifeStr, sizeof(lifeStr), "%d", p.life);
@@ -1103,3 +1145,37 @@ bool DisplayManager::updateSelfTest(uint32_t currentMs) {
     }
     return true;
 }
+
+void DisplayManager::recordDelta(uint8_t playerIdx, int16_t delta, uint32_t currentMs) {
+    if (playerIdx >= NUM_PLAYERS) return;
+    recentDelta[playerIdx] += delta;
+    lastDeltaTimeMs[playerIdx] = currentMs;
+}
+
+void DisplayManager::clearDelta(uint8_t playerIdx) {
+    if (playerIdx >= NUM_PLAYERS) return;
+    recentDelta[playerIdx] = 0;
+    lastDeltaTimeMs[playerIdx] = 0;
+}
+
+int16_t DisplayManager::getRecentDelta(uint8_t playerIdx) const {
+    if (playerIdx >= NUM_PLAYERS) return 0;
+    return recentDelta[playerIdx];
+}
+
+void DisplayManager::updateTransientDeltas(uint32_t currentMs) {
+    if (currentScreen != SCREEN_GAME) return;
+    uint8_t count = state.getPlayerCount();
+    bool anyCleared = false;
+    for (uint8_t i = 0; i < count; i++) {
+        if (recentDelta[i] != 0 && (currentMs - lastDeltaTimeMs[i] >= DELTA_POPUP_TIMEOUT_MS)) {
+            recentDelta[i] = 0;
+            renderQuadrant(i, false);
+            anyCleared = true;
+        }
+    }
+    if (anyCleared) {
+        drawStaticLayout();
+    }
+}
+

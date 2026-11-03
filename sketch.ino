@@ -198,6 +198,7 @@ void loop() {
 
   // Update visual recovery toast if active
   displayMgr.updateToast(currentMs);
+  displayMgr.updateTransientDeltas(currentMs);
 
   uint8_t activePlayerCount = gameState.getPlayerCount();
 
@@ -229,6 +230,9 @@ void loop() {
 
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
 
+      // Record life change for transient delta popup badge
+      int16_t lifeBefore = gameState.getPlayer(targetP).life;
+
       // Dispatch abstract HID action to unified controller for all accumulated steps
       int16_t steps = (delta > 0) ? delta : -delta;
       HIDAction act = (delta > 0) ? ACT_INCREMENT : ACT_DECREMENT;
@@ -236,6 +240,11 @@ void loop() {
         controller.dispatchAction(targetP, act, currentMs);
       }
       persistence.markDirty(currentMs);
+
+      int16_t actualLifeDelta = gameState.getPlayer(targetP).life - lifeBefore;
+      if (actualLifeDelta != 0) {
+        displayMgr.recordDelta(targetP, actualLifeDelta, currentMs);
+      }
 
       // Print live event to Serial
       GameEvent latestEvt;
@@ -264,6 +273,7 @@ void loop() {
       }
 
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
+      displayMgr.clearDelta(targetP);
       controller.dispatchAction(targetP, ACT_CYCLE_MODE, currentMs);
       const PlayerState& p = gameState.getPlayer(targetP);
       if (p.activeMode == MODE_CMDR) {
@@ -282,6 +292,7 @@ void loop() {
         continue;
       }
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
+      displayMgr.clearDelta(targetP);
       controller.dispatchAction(targetP, ACT_RETURN_TO_LIFE, currentMs);
       sysLog("[SYS] P%d returned to LIFE mode\r\n", targetP + 1);
     } else if (swEvt == BTN_EVENT_LONG_PRESS) {
@@ -293,6 +304,7 @@ void loop() {
         continue;
       }
       uint8_t targetP = getPlayerIndexForKnob(i, activePlayerCount);
+      displayMgr.clearDelta(targetP);
       controller.dispatchAction(targetP, ACT_RESET_PLAYER, currentMs);
       persistence.markDirty(currentMs);
       sysLog("[SYS] P%d reset to %d life\r\n", targetP + 1, STARTING_LIFE);
@@ -329,6 +341,9 @@ void loop() {
   } else if (rstEvt == BTN_EVENT_LONG_PRESS) {
     if (displayMgr.getScreenMode() != SCREEN_PLAYER_SELECT) {
       // Full Table Game Reset via controller (1.5s hold)
+      for (uint8_t p = 0; p < NUM_PLAYERS; p++) {
+        displayMgr.clearDelta(p);
+      }
       controller.dispatchAction(0, ACT_RESET_GAME, currentMs);
       displayMgr.returnToGameScreen();
       persistence.clearStorage();
